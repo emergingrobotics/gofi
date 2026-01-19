@@ -40,7 +40,13 @@ type DeviceService interface {
 }
 
 // NetworkService provides network and VLAN management.
-type NetworkService interface{}
+type NetworkService interface {
+	List(ctx context.Context, site string) ([]types.Network, error)
+	Get(ctx context.Context, site, id string) (*types.Network, error)
+	Create(ctx context.Context, site string, network *types.Network) (*types.Network, error)
+	Update(ctx context.Context, site string, network *types.Network) (*types.Network, error)
+	Delete(ctx context.Context, site, id string) error
+}
 
 // WLANService provides wireless network configuration.
 type WLANService interface{}

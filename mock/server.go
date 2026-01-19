@@ -111,6 +111,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Network endpoints
+	if strings.Contains(path, "/rest/networkconf") {
+		s.handleNetworks(w, r, site)
+		return
+	}
+
 	// Site endpoints
 	if strings.HasPrefix(path, "/api/self/sites") ||
 	   strings.Contains(path, "/api/s/") ||
