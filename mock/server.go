@@ -92,6 +92,25 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Extract site from path for API calls
+	site := ""
+	parts := strings.Split(path, "/")
+	for i, part := range parts {
+		if part == "s" && i+1 < len(parts) {
+			site = parts[i+1]
+			break
+		}
+	}
+
+	// Device endpoints
+	if strings.Contains(path, "/stat/device") ||
+	   strings.Contains(path, "/basicstat/device") ||
+	   (strings.Contains(path, "/rest/device/") && r.Method == "PUT") ||
+	   strings.Contains(path, "/cmd/devmgr") {
+		s.handleDevices(w, r, site)
+		return
+	}
+
 	// Site endpoints
 	if strings.HasPrefix(path, "/api/self/sites") ||
 	   strings.Contains(path, "/api/s/") ||

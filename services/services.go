@@ -20,7 +20,24 @@ type SiteService interface {
 }
 
 // DeviceService provides device control and configuration.
-type DeviceService interface{}
+type DeviceService interface {
+	List(ctx context.Context, site string) ([]types.Device, error)
+	ListBasic(ctx context.Context, site string) ([]types.DeviceBasic, error)
+	Get(ctx context.Context, site, id string) (*types.Device, error)
+	GetByMAC(ctx context.Context, site, mac string) (*types.Device, error)
+	Update(ctx context.Context, site string, device *types.Device) (*types.Device, error)
+	Adopt(ctx context.Context, site, mac string) error
+	Forget(ctx context.Context, site, mac string) error
+	Restart(ctx context.Context, site, mac string) error
+	ForceProvision(ctx context.Context, site, mac string) error
+	Upgrade(ctx context.Context, site, mac string) error
+	UpgradeExternal(ctx context.Context, site, mac, url string) error
+	Locate(ctx context.Context, site, mac string) error
+	Unlocate(ctx context.Context, site, mac string) error
+	PowerCyclePort(ctx context.Context, site, switchMAC string, portIdx int) error
+	SetLEDOverride(ctx context.Context, site, mac, mode string) error
+	SpectrumScan(ctx context.Context, site, mac string) error
+}
 
 // NetworkService provides network and VLAN management.
 type NetworkService interface{}

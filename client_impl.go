@@ -23,8 +23,9 @@ type client struct {
 	connected atomic.Bool
 
 	// Lazy-initialized services
-	mu           sync.Mutex
-	sitesService services.SiteService
+	mu             sync.Mutex
+	sitesService   services.SiteService
+	devicesService services.DeviceService
 	// Other services will be added in later phases
 
 	logger Logger
@@ -186,7 +187,14 @@ func (c *client) Sites() services.SiteService {
 
 // Devices returns the device service.
 func (c *client) Devices() services.DeviceService {
-	return nil // Implemented in Phase 9
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.devicesService == nil {
+		c.devicesService = services.NewDeviceService(c.transport)
+	}
+
+	return c.devicesService
 }
 
 // Networks returns the network service.
