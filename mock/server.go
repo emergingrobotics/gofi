@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 )
 
 // Server is a mock UniFi controller server.
@@ -112,10 +113,22 @@ func (s *Server) URL() string {
 // Host returns the server's host (without scheme).
 func (s *Server) Host() string {
 	if s.server != nil {
-		_, host, _ := net.SplitHostPort(s.server.Listener.Addr().String())
+		host, _, _ := net.SplitHostPort(s.server.Listener.Addr().String())
 		return host
 	}
 	return ""
+}
+
+// Port returns the server's port.
+func (s *Server) Port() int {
+	if s.server != nil {
+		_, port, _ := net.SplitHostPort(s.server.Listener.Addr().String())
+		// Port is a string, parse it
+		if p, err := strconv.Atoi(port); err == nil {
+			return p
+		}
+	}
+	return 0
 }
 
 // State returns the server's state (for test manipulation).
