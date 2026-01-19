@@ -49,7 +49,24 @@ type NetworkService interface {
 }
 
 // WLANService provides wireless network configuration.
-type WLANService interface{}
+type WLANService interface {
+	// WLAN methods
+	List(ctx context.Context, site string) ([]types.WLAN, error)
+	Get(ctx context.Context, site, id string) (*types.WLAN, error)
+	Create(ctx context.Context, site string, wlan *types.WLAN) (*types.WLAN, error)
+	Update(ctx context.Context, site string, wlan *types.WLAN) (*types.WLAN, error)
+	Delete(ctx context.Context, site, id string) error
+	Enable(ctx context.Context, site, id string) error
+	Disable(ctx context.Context, site, id string) error
+	SetMACFilter(ctx context.Context, site, id, policy string, macs []string) error
+
+	// WLAN Group methods
+	ListGroups(ctx context.Context, site string) ([]types.WLANGroup, error)
+	GetGroup(ctx context.Context, site, id string) (*types.WLANGroup, error)
+	CreateGroup(ctx context.Context, site string, group *types.WLANGroup) (*types.WLANGroup, error)
+	UpdateGroup(ctx context.Context, site string, group *types.WLANGroup) (*types.WLANGroup, error)
+	DeleteGroup(ctx context.Context, site, id string) error
+}
 
 // FirewallService provides firewall rules and groups management.
 type FirewallService interface{}

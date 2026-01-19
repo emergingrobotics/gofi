@@ -117,6 +117,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// WLAN endpoints
+	if strings.Contains(path, "/rest/wlanconf") || strings.Contains(path, "/rest/wlangroup") {
+		s.handleWLANs(w, r, site)
+		return
+	}
+
 	// Site endpoints
 	if strings.HasPrefix(path, "/api/self/sites") ||
 	   strings.Contains(path, "/api/s/") ||
@@ -215,6 +221,13 @@ func generateToken() string {
 // generateCSRFToken generates a random CSRF token.
 func generateCSRFToken() string {
 	b := make([]byte, 32)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// generateID generates a random ID for resources.
+func generateID() string {
+	b := make([]byte, 12)
 	rand.Read(b)
 	return hex.EncodeToString(b)
 }

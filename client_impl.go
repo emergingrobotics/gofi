@@ -27,6 +27,7 @@ type client struct {
 	sitesService    services.SiteService
 	devicesService  services.DeviceService
 	networksService services.NetworkService
+	wlansService    services.WLANService
 	// Other services will be added in later phases
 
 	logger Logger
@@ -212,7 +213,14 @@ func (c *client) Networks() services.NetworkService {
 
 // WLANs returns the WLAN service.
 func (c *client) WLANs() services.WLANService {
-	return nil // Implemented in Phase 11
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.wlansService == nil {
+		c.wlansService = services.NewWLANService(c.transport)
+	}
+
+	return c.wlansService
 }
 
 // Firewall returns the firewall service.

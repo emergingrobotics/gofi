@@ -226,3 +226,73 @@ func (s *State) DeleteNetwork(id string) {
 	defer s.mu.Unlock()
 	delete(s.networks, id)
 }
+
+// WLAN accessors
+func (s *State) GetWLAN(id string) *types.WLAN {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.wlans[id]
+}
+
+func (s *State) ListWLANs() []*types.WLAN {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	wlans := make([]*types.WLAN, 0, len(s.wlans))
+	for _, wlan := range s.wlans {
+		wlans = append(wlans, wlan)
+	}
+	return wlans
+}
+
+func (s *State) AddWLAN(wlan *types.WLAN) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.wlans[wlan.ID] = wlan
+}
+
+func (s *State) UpdateWLAN(wlan *types.WLAN) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.wlans[wlan.ID] = wlan
+}
+
+func (s *State) DeleteWLAN(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.wlans, id)
+}
+
+// WLAN Group accessors
+func (s *State) GetWLANGroup(id string) *types.WLANGroup {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.wlanGroups[id]
+}
+
+func (s *State) ListWLANGroups() []*types.WLANGroup {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	groups := make([]*types.WLANGroup, 0, len(s.wlanGroups))
+	for _, group := range s.wlanGroups {
+		groups = append(groups, group)
+	}
+	return groups
+}
+
+func (s *State) AddWLANGroup(group *types.WLANGroup) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.wlanGroups[group.ID] = group
+}
+
+func (s *State) UpdateWLANGroup(group *types.WLANGroup) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.wlanGroups[group.ID] = group
+}
+
+func (s *State) DeleteWLANGroup(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.wlanGroups, id)
+}
