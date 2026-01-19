@@ -165,6 +165,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// System endpoints (reboot, backup, admin, speedtest)
+	if strings.Contains(path, "/api/cmd/system") || strings.Contains(path, "/api/cmd/backup") ||
+	   strings.Contains(path, "/api/stat/admin") || strings.Contains(path, "/cmd/speedtest") ||
+	   strings.Contains(path, "/stat/speedtest") {
+		s.handleSystem(w, r, site)
+		return
+	}
+
 	// Site endpoints
 	if strings.HasPrefix(path, "/api/self/sites") ||
 	   strings.Contains(path, "/api/s/") ||

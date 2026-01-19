@@ -101,6 +101,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		Version: "7.5.174",
 	}
 
+	// Status endpoint returns direct JSON, not API response wrapper
 	writeJSON(w, http.StatusOK, status)
 }
 
@@ -124,5 +125,6 @@ func (s *Server) handleSelf(w http.ResponseWriter, r *http.Request) {
 		Email: session.Username + "@example.com",
 	}
 
-	writeAPIResponse(w, admin)
+	// Self endpoint returns data in API response format (array)
+	writeAPIResponse(w, []interface{}{*admin})
 }

@@ -35,6 +35,7 @@ type client struct {
 	portForwardService  services.PortForwardService
 	portProfileService  services.PortProfileService
 	settingService      services.SettingService
+	systemService       services.SystemService
 	// Other services will be added in later phases
 
 	logger Logger
@@ -316,7 +317,14 @@ func (c *client) Settings() services.SettingService {
 
 // System returns the system service.
 func (c *client) System() services.SystemService {
-	return nil // Implemented in Phase 17
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.systemService == nil {
+		c.systemService = services.NewSystemService(c.transport)
+	}
+
+	return c.systemService
 }
 
 // Events returns the event service.

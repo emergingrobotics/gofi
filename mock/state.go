@@ -29,9 +29,12 @@ type State struct {
 	routes         map[string]*types.Route
 	portForwards   map[string]*types.PortForward
 	portProfiles   map[string]*types.PortProfile
-	settings       map[string]*types.Setting
-	radiusProfiles map[string]*types.RADIUSProfile
-	dynamicDNS     *types.DynamicDNS
+	settings         map[string]*types.Setting
+	radiusProfiles   map[string]*types.RADIUSProfile
+	dynamicDNS       *types.DynamicDNS
+	backups          []*types.Backup
+	admins           []*types.AdminUser
+	speedTestStatus  *types.SpeedTestStatus
 }
 
 // Session represents a mock authentication session.
@@ -61,6 +64,8 @@ func NewState() *State {
 		portProfiles:       make(map[string]*types.PortProfile),
 		settings:           make(map[string]*types.Setting),
 		radiusProfiles:     make(map[string]*types.RADIUSProfile),
+		backups:            make([]*types.Backup, 0),
+		admins:             make([]*types.AdminUser, 0),
 	}
 
 	// Add default admin user
@@ -99,6 +104,9 @@ func (s *State) Reset() {
 	s.settings = make(map[string]*types.Setting)
 	s.radiusProfiles = make(map[string]*types.RADIUSProfile)
 	s.dynamicDNS = nil
+	s.backups = make([]*types.Backup, 0)
+	s.admins = make([]*types.AdminUser, 0)
+	s.speedTestStatus = nil
 
 	// Re-add default site
 	s.sites["default"] = &types.Site{
@@ -712,4 +720,74 @@ func (s *State) SetDynamicDNS(ddns *types.DynamicDNS) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.dynamicDNS = ddns
+}
+
+// Backup accessors
+func (s *State) ListBackups() []*types.Backup {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.backups
+}
+
+func (s *State) AddBackup(backup *types.Backup) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.backups = append(s.backups, backup)
+}
+
+func (s *State) DeleteBackup(filename string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, backup := range s.backups {
+		if backup.Filename == filename {
+			s.backups = append(s.backups[:i], s.backups[i+1:]...)
+			return
+		}
+	}
+}
+
+// Admin accessors
+func (s *State) ListAdmins() []*types.AdminUser {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.admins
+}
+
+func (s *State) AddAdmin(admin *types.AdminUser) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.admins = append(s.admins, admin)
+}
+
+// SpeedTest accessors
+func (s *State) GetSpeedTestStatus() *types.SpeedTestStatus {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.speedTestStatus
+}
+
+func (s *State) SetSpeedTestStatus(status *types.SpeedTestStatus) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.speedTestStatus = status
+}
+
+func (s *State) SimulateSpeedTest() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// Simulate a completed speed test
+	s.speedTestStatus = &types.SpeedTestStatus{
+		StatusDownload: 100,
+		StatusLatency:  100,
+		StatusUpload:   100,
+		StatusSummary:  100,
+		Latency:        15,
+		Running:        false,
+		Runtime:        0,
+		ServerName:     "Mock Speed Test Server",
+		ServerCountry:  "US",
+	}
+	// Set upload/download speeds
+	s.speedTestStatus.XputDownload.Val = 500.0
+	s.speedTestStatus.XputUpload.Val = 50.0
 }
