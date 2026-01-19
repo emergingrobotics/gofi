@@ -159,6 +159,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Settings endpoints
+	if strings.Contains(path, "/rest/setting") || strings.Contains(path, "/rest/radiusprofile") || strings.Contains(path, "/rest/dynamicdns") {
+		s.handleSettings(w, r, site)
+		return
+	}
+
 	// Site endpoints
 	if strings.HasPrefix(path, "/api/self/sites") ||
 	   strings.Contains(path, "/api/s/") ||

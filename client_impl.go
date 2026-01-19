@@ -34,6 +34,7 @@ type client struct {
 	routingService      services.RoutingService
 	portForwardService  services.PortForwardService
 	portProfileService  services.PortProfileService
+	settingService      services.SettingService
 	// Other services will be added in later phases
 
 	logger Logger
@@ -303,7 +304,14 @@ func (c *client) PortProfiles() services.PortProfileService {
 
 // Settings returns the settings service.
 func (c *client) Settings() services.SettingService {
-	return nil // Implemented in Phase 16
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.settingService == nil {
+		c.settingService = services.NewSettingService(c.transport)
+	}
+
+	return c.settingService
 }
 
 // System returns the system service.

@@ -26,9 +26,12 @@ type State struct {
 	clients      map[string]*types.Client
 	users        map[string]*types.User
 	userGroups   map[string]*types.UserGroup
-	routes       map[string]*types.Route
-	portForwards map[string]*types.PortForward
-	portProfiles map[string]*types.PortProfile
+	routes         map[string]*types.Route
+	portForwards   map[string]*types.PortForward
+	portProfiles   map[string]*types.PortProfile
+	settings       map[string]*types.Setting
+	radiusProfiles map[string]*types.RADIUSProfile
+	dynamicDNS     *types.DynamicDNS
 }
 
 // Session represents a mock authentication session.
@@ -56,6 +59,8 @@ func NewState() *State {
 		routes:             make(map[string]*types.Route),
 		portForwards:       make(map[string]*types.PortForward),
 		portProfiles:       make(map[string]*types.PortProfile),
+		settings:           make(map[string]*types.Setting),
+		radiusProfiles:     make(map[string]*types.RADIUSProfile),
 	}
 
 	// Add default admin user
@@ -91,6 +96,9 @@ func (s *State) Reset() {
 	s.routes = make(map[string]*types.Route)
 	s.portForwards = make(map[string]*types.PortForward)
 	s.portProfiles = make(map[string]*types.PortProfile)
+	s.settings = make(map[string]*types.Setting)
+	s.radiusProfiles = make(map[string]*types.RADIUSProfile)
+	s.dynamicDNS = nil
 
 	// Re-add default site
 	s.sites["default"] = &types.Site{
@@ -621,4 +629,87 @@ func (s *State) DeletePortProfile(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.portProfiles, id)
+}
+
+// Setting accessors
+func (s *State) GetSetting(key string) *types.Setting {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.settings[key]
+}
+
+func (s *State) ListSettings() []*types.Setting {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	settings := make([]*types.Setting, 0, len(s.settings))
+	for _, setting := range s.settings {
+		settings = append(settings, setting)
+	}
+	return settings
+}
+
+func (s *State) AddSetting(setting *types.Setting) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.settings[setting.Key] = setting
+}
+
+func (s *State) UpdateSetting(setting *types.Setting) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.settings[setting.Key] = setting
+}
+
+func (s *State) DeleteSetting(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.settings, key)
+}
+
+// RADIUSProfile accessors
+func (s *State) GetRADIUSProfile(id string) *types.RADIUSProfile {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.radiusProfiles[id]
+}
+
+func (s *State) ListRADIUSProfiles() []*types.RADIUSProfile {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	profiles := make([]*types.RADIUSProfile, 0, len(s.radiusProfiles))
+	for _, profile := range s.radiusProfiles {
+		profiles = append(profiles, profile)
+	}
+	return profiles
+}
+
+func (s *State) AddRADIUSProfile(profile *types.RADIUSProfile) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.radiusProfiles[profile.ID] = profile
+}
+
+func (s *State) UpdateRADIUSProfile(profile *types.RADIUSProfile) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.radiusProfiles[profile.ID] = profile
+}
+
+func (s *State) DeleteRADIUSProfile(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.radiusProfiles, id)
+}
+
+// DynamicDNS accessors
+func (s *State) GetDynamicDNS() *types.DynamicDNS {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.dynamicDNS
+}
+
+func (s *State) SetDynamicDNS(ddns *types.DynamicDNS) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dynamicDNS = ddns
 }
