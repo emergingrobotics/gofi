@@ -274,5 +274,6 @@ type SystemService interface {
 
 // EventService provides real-time event streaming.
 type EventService interface {
-	Subscribe(ctx context.Context, site string) error
+	Subscribe(ctx context.Context, site string) (<-chan types.Event, <-chan error, error)
+	Close() error
 }
