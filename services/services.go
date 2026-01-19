@@ -212,19 +212,65 @@ type UserService interface {
 }
 
 // RoutingService provides static route management.
-type RoutingService interface{}
+type RoutingService interface {
+	List(ctx context.Context, site string) ([]types.Route, error)
+	Get(ctx context.Context, site, id string) (*types.Route, error)
+	Create(ctx context.Context, site string, route *types.Route) (*types.Route, error)
+	Update(ctx context.Context, site string, route *types.Route) (*types.Route, error)
+	Delete(ctx context.Context, site, id string) error
+	Enable(ctx context.Context, site, id string) error
+	Disable(ctx context.Context, site, id string) error
+}
 
 // PortForwardService provides port forwarding management.
-type PortForwardService interface{}
+type PortForwardService interface {
+	List(ctx context.Context, site string) ([]types.PortForward, error)
+	Get(ctx context.Context, site, id string) (*types.PortForward, error)
+	Create(ctx context.Context, site string, forward *types.PortForward) (*types.PortForward, error)
+	Update(ctx context.Context, site string, forward *types.PortForward) (*types.PortForward, error)
+	Delete(ctx context.Context, site, id string) error
+	Enable(ctx context.Context, site, id string) error
+	Disable(ctx context.Context, site, id string) error
+}
 
 // PortProfileService provides port profile management.
-type PortProfileService interface{}
+type PortProfileService interface {
+	List(ctx context.Context, site string) ([]types.PortProfile, error)
+	Get(ctx context.Context, site, id string) (*types.PortProfile, error)
+	Create(ctx context.Context, site string, profile *types.PortProfile) (*types.PortProfile, error)
+	Update(ctx context.Context, site string, profile *types.PortProfile) (*types.PortProfile, error)
+	Delete(ctx context.Context, site, id string) error
+}
 
 // SettingService provides system settings management.
-type SettingService interface{}
+type SettingService interface {
+	Get(ctx context.Context, site, key string) (interface{}, error)
+	Update(ctx context.Context, site string, setting interface{}) error
+
+	// RADIUS profiles
+	ListRadiusProfiles(ctx context.Context, site string) ([]types.RADIUSProfile, error)
+	GetRadiusProfile(ctx context.Context, site, id string) (*types.RADIUSProfile, error)
+	CreateRadiusProfile(ctx context.Context, site string, profile *types.RADIUSProfile) (*types.RADIUSProfile, error)
+	UpdateRadiusProfile(ctx context.Context, site string, profile *types.RADIUSProfile) (*types.RADIUSProfile, error)
+	DeleteRadiusProfile(ctx context.Context, site, id string) error
+
+	// Dynamic DNS
+	GetDynamicDNS(ctx context.Context, site string) (*types.DynamicDNS, error)
+	UpdateDynamicDNS(ctx context.Context, site string, ddns *types.DynamicDNS) error
+}
 
 // SystemService provides system-level operations.
-type SystemService interface{}
+type SystemService interface {
+	Status(ctx context.Context) (*types.Status, error)
+	Self(ctx context.Context) (*types.AdminUser, error)
+	Reboot(ctx context.Context) error
+	SpeedTest(ctx context.Context, site string) error
+	SpeedTestStatus(ctx context.Context, site string) (*types.SpeedTestStatus, error)
+	ListBackups(ctx context.Context) ([]types.Backup, error)
+	CreateBackup(ctx context.Context) error
+	DeleteBackup(ctx context.Context, filename string) error
+	ListAdmins(ctx context.Context) ([]types.AdminUser, error)
+}
 
 // EventService provides real-time event streaming.
 type EventService interface {

@@ -23,14 +23,17 @@ type client struct {
 	connected atomic.Bool
 
 	// Lazy-initialized services
-	mu                sync.Mutex
-	sitesService      services.SiteService
-	devicesService    services.DeviceService
-	networksService   services.NetworkService
-	wlansService      services.WLANService
-	firewallService   services.FirewallService
-	clientsService    services.ClientService
-	usersService      services.UserService
+	mu                  sync.Mutex
+	sitesService        services.SiteService
+	devicesService      services.DeviceService
+	networksService     services.NetworkService
+	wlansService        services.WLANService
+	firewallService     services.FirewallService
+	clientsService      services.ClientService
+	usersService        services.UserService
+	routingService      services.RoutingService
+	portForwardService  services.PortForwardService
+	portProfileService  services.PortProfileService
 	// Other services will be added in later phases
 
 	logger Logger
@@ -264,17 +267,38 @@ func (c *client) Users() services.UserService {
 
 // Routing returns the routing service.
 func (c *client) Routing() services.RoutingService {
-	return nil // Implemented in Phase 15
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.routingService == nil {
+		c.routingService = services.NewRoutingService(c.transport)
+	}
+
+	return c.routingService
 }
 
 // PortForwards returns the port forward service.
 func (c *client) PortForwards() services.PortForwardService {
-	return nil // Implemented in Phase 15
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.portForwardService == nil {
+		c.portForwardService = services.NewPortForwardService(c.transport)
+	}
+
+	return c.portForwardService
 }
 
 // PortProfiles returns the port profile service.
 func (c *client) PortProfiles() services.PortProfileService {
-	return nil // Implemented in Phase 15
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.portProfileService == nil {
+		c.portProfileService = services.NewPortProfileService(c.transport)
+	}
+
+	return c.portProfileService
 }
 
 // Settings returns the settings service.
