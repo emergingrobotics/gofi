@@ -3,6 +3,7 @@ package gofi
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/unifi-go/gofi/mock"
 	"github.com/unifi-go/gofi/types"
@@ -165,5 +166,78 @@ func TestClient_Integration_DeviceService(t *testing.T) {
 	// Test Unlocate
 	if err := client.Devices().Unlocate(context.Background(), "default", "aa:bb:cc:dd:ee:f1"); err != nil {
 		t.Fatalf("Devices().Unlocate() error = %v", err)
+	}
+}
+
+func TestClient_Integration_ClientService(t *testing.T) {
+	server := mock.NewServer()
+	defer server.Close()
+
+	// Add test clients
+	server.State().AddClient(&types.Client{
+		MAC:      "aa:bb:cc:dd:ee:f1",
+		Hostname: "test-device",
+		IP:       "192.168.1.100",
+		LastSeen: time.Now().Unix() - 60, // Recent (1 minute ago)
+	})
+
+	config := &Config{
+		Host:          server.Host(),
+		Port:          server.Port(),
+		Username:      "admin",
+		Password:      "admin",
+		SkipTLSVerify: true,
+	}
+
+	client, err := New(config)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	// Connect
+	if err := client.Connect(context.Background()); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	defer client.Disconnect(context.Background())
+
+	// Test ListActive
+	clients, err := client.Clients().ListActive(context.Background(), "default")
+	if err != nil {
+		t.Fatalf("Clients().ListActive() error = %v", err)
+	}
+
+	// Note: The client may or may not be active depending on LastSeen timestamp
+	_ = clients
+
+	// Test ListAll
+	allClients, err := client.Clients().ListAll(context.Background(), "default")
+	if err != nil {
+		t.Fatalf("Clients().ListAll() error = %v", err)
+	}
+
+	if len(allClients) == 0 {
+		t.Error("Expected at least one client")
+	}
+
+	// Test Block
+	if err := client.Clients().Block(context.Background(), "default", "aa:bb:cc:dd:ee:f1"); err != nil {
+		t.Fatalf("Clients().Block() error = %v", err)
+	}
+
+	// Verify blocked
+	blockedClient := server.State().GetClient("aa:bb:cc:dd:ee:f1")
+	if blockedClient == nil || !blockedClient.Blocked {
+		t.Error("Expected client to be blocked")
+	}
+
+	// Test Unblock
+	if err := client.Clients().Unblock(context.Background(), "default", "aa:bb:cc:dd:ee:f1"); err != nil {
+		t.Fatalf("Clients().Unblock() error = %v", err)
+	}
+
+	// Verify unblocked
+	unblockedClient := server.State().GetClient("aa:bb:cc:dd:ee:f1")
+	if unblockedClient == nil || unblockedClient.Blocked {
+		t.Error("Expected client to be unblocked")
 	}
 }

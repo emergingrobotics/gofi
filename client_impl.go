@@ -23,12 +23,13 @@ type client struct {
 	connected atomic.Bool
 
 	// Lazy-initialized services
-	mu               sync.Mutex
-	sitesService     services.SiteService
-	devicesService   services.DeviceService
-	networksService  services.NetworkService
-	wlansService     services.WLANService
-	firewallService  services.FirewallService
+	mu                sync.Mutex
+	sitesService      services.SiteService
+	devicesService    services.DeviceService
+	networksService   services.NetworkService
+	wlansService      services.WLANService
+	firewallService   services.FirewallService
+	clientsService    services.ClientService
 	// Other services will be added in later phases
 
 	logger Logger
@@ -238,7 +239,14 @@ func (c *client) Firewall() services.FirewallService {
 
 // Clients returns the client service.
 func (c *client) Clients() services.ClientService {
-	return nil // Implemented in Phase 13
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.clientsService == nil {
+		c.clientsService = services.NewClientService(c.transport)
+	}
+
+	return c.clientsService
 }
 
 // Users returns the user service.

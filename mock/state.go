@@ -401,3 +401,224 @@ func (s *State) DeleteTrafficRule(id string) {
 	defer s.mu.Unlock()
 	delete(s.trafficRules, id)
 }
+
+// Client accessors
+func (s *State) GetClient(mac string) *types.Client {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.clients[mac]
+}
+
+func (s *State) ListClients() []*types.Client {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	clients := make([]*types.Client, 0, len(s.clients))
+	for _, client := range s.clients {
+		clients = append(clients, client)
+	}
+	return clients
+}
+
+func (s *State) AddClient(client *types.Client) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.clients[client.MAC] = client
+}
+
+func (s *State) UpdateClient(client *types.Client) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.clients[client.MAC] = client
+}
+
+func (s *State) DeleteClient(mac string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.clients, mac)
+}
+
+// User accessors (known clients, not auth users)
+func (s *State) GetKnownClient(id string) *types.User {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.users[id]
+}
+
+func (s *State) GetKnownClientByMAC(mac string) *types.User {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, user := range s.users {
+		if user.MAC == mac {
+			return user
+		}
+	}
+	return nil
+}
+
+func (s *State) ListKnownClients() []*types.User {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	users := make([]*types.User, 0, len(s.users))
+	for _, user := range s.users {
+		users = append(users, user)
+	}
+	return users
+}
+
+func (s *State) AddKnownClient(user *types.User) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.users[user.ID] = user
+}
+
+func (s *State) UpdateKnownClient(user *types.User) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.users[user.ID] = user
+}
+
+func (s *State) DeleteKnownClient(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.users, id)
+}
+
+// UserGroup accessors
+func (s *State) GetUserGroup(id string) *types.UserGroup {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.userGroups[id]
+}
+
+func (s *State) ListUserGroups() []*types.UserGroup {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	groups := make([]*types.UserGroup, 0, len(s.userGroups))
+	for _, group := range s.userGroups {
+		groups = append(groups, group)
+	}
+	return groups
+}
+
+func (s *State) AddUserGroup(group *types.UserGroup) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.userGroups[group.ID] = group
+}
+
+func (s *State) UpdateUserGroup(group *types.UserGroup) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.userGroups[group.ID] = group
+}
+
+func (s *State) DeleteUserGroup(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.userGroups, id)
+}
+
+// Route accessors
+func (s *State) GetRoute(id string) *types.Route {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.routes[id]
+}
+
+func (s *State) ListRoutes() []*types.Route {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	routes := make([]*types.Route, 0, len(s.routes))
+	for _, route := range s.routes {
+		routes = append(routes, route)
+	}
+	return routes
+}
+
+func (s *State) AddRoute(route *types.Route) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.routes[route.ID] = route
+}
+
+func (s *State) UpdateRoute(route *types.Route) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.routes[route.ID] = route
+}
+
+func (s *State) DeleteRoute(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.routes, id)
+}
+
+// PortForward accessors
+func (s *State) GetPortForward(id string) *types.PortForward {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.portForwards[id]
+}
+
+func (s *State) ListPortForwards() []*types.PortForward {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	forwards := make([]*types.PortForward, 0, len(s.portForwards))
+	for _, forward := range s.portForwards {
+		forwards = append(forwards, forward)
+	}
+	return forwards
+}
+
+func (s *State) AddPortForward(forward *types.PortForward) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.portForwards[forward.ID] = forward
+}
+
+func (s *State) UpdatePortForward(forward *types.PortForward) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.portForwards[forward.ID] = forward
+}
+
+func (s *State) DeletePortForward(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.portForwards, id)
+}
+
+// PortProfile accessors
+func (s *State) GetPortProfile(id string) *types.PortProfile {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.portProfiles[id]
+}
+
+func (s *State) ListPortProfiles() []*types.PortProfile {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	profiles := make([]*types.PortProfile, 0, len(s.portProfiles))
+	for _, profile := range s.portProfiles {
+		profiles = append(profiles, profile)
+	}
+	return profiles
+}
+
+func (s *State) AddPortProfile(profile *types.PortProfile) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.portProfiles[profile.ID] = profile
+}
+
+func (s *State) UpdatePortProfile(profile *types.PortProfile) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.portProfiles[profile.ID] = profile
+}
+
+func (s *State) DeletePortProfile(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.portProfiles, id)
+}

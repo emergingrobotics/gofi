@@ -96,7 +96,99 @@ type FirewallService interface {
 }
 
 // ClientService provides connected client/station operations.
-type ClientService interface{}
+type ClientService interface {
+	// ListActive returns all currently connected clients.
+	ListActive(ctx context.Context, site string) ([]types.Client, error)
+
+	// ListAll returns all known clients (including historical).
+	ListAll(ctx context.Context, site string, opts ...ClientListOption) ([]types.Client, error)
+
+	// Get returns a client by MAC address.
+	Get(ctx context.Context, site, mac string) (*types.Client, error)
+
+	// Block blocks a client from the network.
+	Block(ctx context.Context, site, mac string) error
+
+	// Unblock unblocks a previously blocked client.
+	Unblock(ctx context.Context, site, mac string) error
+
+	// Kick disconnects a client from the network.
+	Kick(ctx context.Context, site, mac string) error
+
+	// AuthorizeGuest authorizes a guest client.
+	AuthorizeGuest(ctx context.Context, site, mac string, opts ...GuestAuthOption) error
+
+	// UnauthorizeGuest revokes guest authorization.
+	UnauthorizeGuest(ctx context.Context, site, mac string) error
+
+	// Forget removes a client from the known clients list.
+	Forget(ctx context.Context, site, mac string) error
+
+	// SetFingerprint overrides the device fingerprint.
+	SetFingerprint(ctx context.Context, site, mac string, devID int) error
+}
+
+// ClientListOption configures client list queries.
+type ClientListOption func(*clientListOptions)
+
+// clientListOptions holds options for listing clients.
+type clientListOptions struct {
+	withinHours int
+}
+
+// WithinHours limits results to clients seen within the specified hours.
+func WithinHours(hours int) ClientListOption {
+	return func(opts *clientListOptions) {
+		opts.withinHours = hours
+	}
+}
+
+// GuestAuthOption configures guest authorization.
+type GuestAuthOption func(*guestAuthOptions)
+
+// guestAuthOptions holds options for guest authorization.
+type guestAuthOptions struct {
+	minutes int
+	up      int
+	down    int
+	bytes   int
+	apMAC   string
+}
+
+// WithDuration sets the authorization duration in minutes.
+func WithDuration(minutes int) GuestAuthOption {
+	return func(opts *guestAuthOptions) {
+		opts.minutes = minutes
+	}
+}
+
+// WithUploadLimit sets the upload bandwidth limit in Kbps.
+func WithUploadLimit(kbps int) GuestAuthOption {
+	return func(opts *guestAuthOptions) {
+		opts.up = kbps
+	}
+}
+
+// WithDownloadLimit sets the download bandwidth limit in Kbps.
+func WithDownloadLimit(kbps int) GuestAuthOption {
+	return func(opts *guestAuthOptions) {
+		opts.down = kbps
+	}
+}
+
+// WithDataLimit sets the total data limit in megabytes.
+func WithDataLimit(mb int) GuestAuthOption {
+	return func(opts *guestAuthOptions) {
+		opts.bytes = mb
+	}
+}
+
+// WithAPMAC restricts authorization to a specific AP.
+func WithAPMAC(mac string) GuestAuthOption {
+	return func(opts *guestAuthOptions) {
+		opts.apMAC = mac
+	}
+}
 
 // UserService provides known client/user management.
 type UserService interface{}

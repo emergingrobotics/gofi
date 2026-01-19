@@ -135,6 +135,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Client/station endpoints
+	if strings.Contains(path, "/stat/sta") || strings.Contains(path, "/stat/alluser") || strings.Contains(path, "/cmd/stamgr") {
+		s.handleClients(w, r, site)
+		return
+	}
+
 	// Site endpoints
 	if strings.HasPrefix(path, "/api/self/sites") ||
 	   strings.Contains(path, "/api/s/") ||
