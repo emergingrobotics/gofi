@@ -1,7 +1,7 @@
 # gofi
 
 <p align="center">
-  <img src="./images/gofi-logo.png" alt="gofi logo" width="50%">
+  <img src="./images/gofi-logo.png" alt="gofi logo" width="20%">
 </p>
 
 <p align="center">
