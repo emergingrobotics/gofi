@@ -296,3 +296,108 @@ func (s *State) DeleteWLANGroup(id string) {
 	defer s.mu.Unlock()
 	delete(s.wlanGroups, id)
 }
+
+// Firewall Rule accessors
+func (s *State) GetFirewallRule(id string) *types.FirewallRule {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.firewallRules[id]
+}
+
+func (s *State) ListFirewallRules() []*types.FirewallRule {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rules := make([]*types.FirewallRule, 0, len(s.firewallRules))
+	for _, rule := range s.firewallRules {
+		rules = append(rules, rule)
+	}
+	return rules
+}
+
+func (s *State) AddFirewallRule(rule *types.FirewallRule) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.firewallRules[rule.ID] = rule
+}
+
+func (s *State) UpdateFirewallRule(rule *types.FirewallRule) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.firewallRules[rule.ID] = rule
+}
+
+func (s *State) DeleteFirewallRule(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.firewallRules, id)
+}
+
+// Firewall Group accessors
+func (s *State) GetFirewallGroup(id string) *types.FirewallGroup {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.firewallGroups[id]
+}
+
+func (s *State) ListFirewallGroups() []*types.FirewallGroup {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	groups := make([]*types.FirewallGroup, 0, len(s.firewallGroups))
+	for _, group := range s.firewallGroups {
+		groups = append(groups, group)
+	}
+	return groups
+}
+
+func (s *State) AddFirewallGroup(group *types.FirewallGroup) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.firewallGroups[group.ID] = group
+}
+
+func (s *State) UpdateFirewallGroup(group *types.FirewallGroup) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.firewallGroups[group.ID] = group
+}
+
+func (s *State) DeleteFirewallGroup(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.firewallGroups, id)
+}
+
+// Traffic Rule accessors
+func (s *State) GetTrafficRule(id string) *types.TrafficRule {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.trafficRules[id]
+}
+
+func (s *State) ListTrafficRules() []*types.TrafficRule {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rules := make([]*types.TrafficRule, 0, len(s.trafficRules))
+	for _, rule := range s.trafficRules {
+		rules = append(rules, rule)
+	}
+	return rules
+}
+
+func (s *State) AddTrafficRule(rule *types.TrafficRule) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.trafficRules[rule.ID] = rule
+}
+
+func (s *State) UpdateTrafficRule(rule *types.TrafficRule) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.trafficRules[rule.ID] = rule
+}
+
+func (s *State) DeleteTrafficRule(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.trafficRules, id)
+}

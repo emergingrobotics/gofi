@@ -123,6 +123,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Firewall endpoints (v1 API)
+	if strings.Contains(path, "/rest/firewallrule") || strings.Contains(path, "/rest/firewallgroup") {
+		s.handleFirewall(w, r, site)
+		return
+	}
+
+	// Traffic rules (v2 API)
+	if strings.Contains(path, "/v2/api/site/") && strings.Contains(path, "/trafficrule") {
+		s.handleTrafficRules(w, r, site)
+		return
+	}
+
 	// Site endpoints
 	if strings.HasPrefix(path, "/api/self/sites") ||
 	   strings.Contains(path, "/api/s/") ||

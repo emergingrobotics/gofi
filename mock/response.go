@@ -86,3 +86,23 @@ func writeNotFound(w http.ResponseWriter) {
 func writeBadRequest(w http.ResponseWriter, message string) {
 	writeAPIError(w, http.StatusBadRequest, "error", message)
 }
+
+// writeAPIResponseWithStatus writes an API response with a specific status code.
+func writeAPIResponseWithStatus(w http.ResponseWriter, data interface{}, statusCode int) {
+	resp := types.APIResponse[interface{}]{
+		Meta: types.ResponseMeta{
+			RC: "ok",
+		},
+		Data: []interface{}{data},
+	}
+
+	// If data is already a slice, use it directly
+	if dataSlice, ok := data.([]interface{}); ok {
+		resp.Data = dataSlice
+	} else {
+		resp.Data = []interface{}{data}
+	}
+
+	resp.Meta.Count = len(resp.Data)
+	writeJSON(w, statusCode, resp)
+}

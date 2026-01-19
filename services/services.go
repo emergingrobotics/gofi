@@ -69,7 +69,31 @@ type WLANService interface {
 }
 
 // FirewallService provides firewall rules and groups management.
-type FirewallService interface{}
+type FirewallService interface {
+	// Firewall Rule methods
+	ListRules(ctx context.Context, site string) ([]types.FirewallRule, error)
+	GetRule(ctx context.Context, site, id string) (*types.FirewallRule, error)
+	CreateRule(ctx context.Context, site string, rule *types.FirewallRule) (*types.FirewallRule, error)
+	UpdateRule(ctx context.Context, site string, rule *types.FirewallRule) (*types.FirewallRule, error)
+	DeleteRule(ctx context.Context, site, id string) error
+	EnableRule(ctx context.Context, site, id string) error
+	DisableRule(ctx context.Context, site, id string) error
+	ReorderRules(ctx context.Context, site, ruleset string, updates []types.FirewallRuleIndexUpdate) error
+
+	// Firewall Group methods
+	ListGroups(ctx context.Context, site string) ([]types.FirewallGroup, error)
+	GetGroup(ctx context.Context, site, id string) (*types.FirewallGroup, error)
+	CreateGroup(ctx context.Context, site string, group *types.FirewallGroup) (*types.FirewallGroup, error)
+	UpdateGroup(ctx context.Context, site string, group *types.FirewallGroup) (*types.FirewallGroup, error)
+	DeleteGroup(ctx context.Context, site, id string) error
+
+	// Traffic Rule methods (v2 API)
+	ListTrafficRules(ctx context.Context, site string) ([]types.TrafficRule, error)
+	GetTrafficRule(ctx context.Context, site, id string) (*types.TrafficRule, error)
+	CreateTrafficRule(ctx context.Context, site string, rule *types.TrafficRule) (*types.TrafficRule, error)
+	UpdateTrafficRule(ctx context.Context, site string, rule *types.TrafficRule) (*types.TrafficRule, error)
+	DeleteTrafficRule(ctx context.Context, site, id string) error
+}
 
 // ClientService provides connected client/station operations.
 type ClientService interface{}
