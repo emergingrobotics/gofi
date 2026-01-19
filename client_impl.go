@@ -30,6 +30,7 @@ type client struct {
 	wlansService      services.WLANService
 	firewallService   services.FirewallService
 	clientsService    services.ClientService
+	usersService      services.UserService
 	// Other services will be added in later phases
 
 	logger Logger
@@ -251,7 +252,14 @@ func (c *client) Clients() services.ClientService {
 
 // Users returns the user service.
 func (c *client) Users() services.UserService {
-	return nil // Implemented in Phase 14
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.usersService == nil {
+		c.usersService = services.NewUserService(c.transport)
+	}
+
+	return c.usersService
 }
 
 // Routing returns the routing service.

@@ -191,7 +191,25 @@ func WithAPMAC(mac string) GuestAuthOption {
 }
 
 // UserService provides known client/user management.
-type UserService interface{}
+type UserService interface {
+	// User operations
+	List(ctx context.Context, site string) ([]types.User, error)
+	Get(ctx context.Context, site, id string) (*types.User, error)
+	GetByMAC(ctx context.Context, site, mac string) (*types.User, error)
+	Create(ctx context.Context, site string, user *types.User) (*types.User, error)
+	Update(ctx context.Context, site string, user *types.User) (*types.User, error)
+	Delete(ctx context.Context, site, id string) error
+	DeleteByMAC(ctx context.Context, site, mac string) error
+	SetFixedIP(ctx context.Context, site, mac, ip, networkID string) error
+	ClearFixedIP(ctx context.Context, site, mac string) error
+
+	// User group operations
+	ListGroups(ctx context.Context, site string) ([]types.UserGroup, error)
+	GetGroup(ctx context.Context, site, id string) (*types.UserGroup, error)
+	CreateGroup(ctx context.Context, site string, group *types.UserGroup) (*types.UserGroup, error)
+	UpdateGroup(ctx context.Context, site string, group *types.UserGroup) (*types.UserGroup, error)
+	DeleteGroup(ctx context.Context, site, id string) error
+}
 
 // RoutingService provides static route management.
 type RoutingService interface{}
