@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 )
 
 // Server is a mock UniFi controller server.
@@ -88,6 +89,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if path == "/api/self" {
 		s.handleSelf(w, r)
+		return
+	}
+
+	// Site endpoints
+	if strings.HasPrefix(path, "/api/self/sites") ||
+	   strings.Contains(path, "/api/s/") ||
+	   strings.Contains(path, "/stat/health") ||
+	   strings.Contains(path, "/stat/sysinfo") {
+		s.handleSites(w, r, "")
 		return
 	}
 

@@ -2,12 +2,22 @@ package services
 
 import (
 	"context"
+
+	"github.com/unifi-go/gofi/types"
 )
 
 // Placeholder service interfaces - will be implemented in later phases
 
 // SiteService provides site management operations.
-type SiteService interface{}
+type SiteService interface {
+	List(ctx context.Context) ([]types.Site, error)
+	Get(ctx context.Context, id string) (*types.Site, error)
+	Create(ctx context.Context, desc, name string) (*types.Site, error)
+	Update(ctx context.Context, site *types.Site) (*types.Site, error)
+	Delete(ctx context.Context, id string) error
+	Health(ctx context.Context, site string) ([]types.HealthData, error)
+	SysInfo(ctx context.Context, site string) (*types.SysInfo, error)
+}
 
 // DeviceService provides device control and configuration.
 type DeviceService interface{}

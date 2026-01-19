@@ -178,8 +178,7 @@ func (c *client) Sites() services.SiteService {
 	defer c.mu.Unlock()
 
 	if c.sitesService == nil {
-		// Will be implemented in Phase 8
-		c.sitesService = nil
+		c.sitesService = services.NewSiteService(c.transport)
 	}
 
 	return c.sitesService
