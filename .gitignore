@@ -1,0 +1,70 @@
+# Environment files (secrets)
+.env
+.env.*
+.envrc
+*.env
+
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go build artifacts
+*.o
+*.a
+*.test
+*.out
+
+# Coverage reports
+coverage.out
+coverage.html
+*.coverprofile
+
+# Dependency directories
+vendor/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Debug files
+debug
+debug.test
+*.prof
+*.pprof
+
+# Local configuration
+*.local
+config.local.*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.log
+
+# Go workspace files (if not using workspaces)
+go.work
+go.work.sum
