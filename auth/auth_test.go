@@ -24,9 +24,8 @@ func TestNew(t *testing.T) {
 		t.Fatal("New() returned nil")
 	}
 
-	if !mgr.IsAuthenticated() {
-		// Should not be authenticated initially
-	}
+	// Should not be authenticated initially - this is expected
+	_ = mgr.IsAuthenticated()
 }
 
 func TestManager_Login_Success(t *testing.T) {
@@ -49,7 +48,7 @@ func TestManager_Login_Success(t *testing.T) {
 				"rc": "ok",
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -99,7 +98,7 @@ func TestManager_Login_Failure(t *testing.T) {
 				"rc": "error",
 			},
 		}
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -138,7 +137,7 @@ func TestManager_Logout(t *testing.T) {
 			resp := map[string]interface{}{
 				"meta": map[string]string{"rc": "ok"},
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 			return
 		}
 
@@ -205,7 +204,7 @@ func TestManager_EnsureAuthenticated(t *testing.T) {
 			resp := map[string]interface{}{
 				"meta": map[string]string{"rc": "ok"},
 			}
-			json.NewEncoder(w).Encode(resp)
+			_ = json.NewEncoder(w).Encode(resp)
 			return
 		}
 	}))

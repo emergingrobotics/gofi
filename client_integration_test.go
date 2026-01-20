@@ -30,7 +30,7 @@ func TestClient_Integration_SiteService(t *testing.T) {
 	if err := client.Connect(context.Background()); err != nil {
 		t.Fatalf("Connect() error = %v", err)
 	}
-	defer client.Disconnect(context.Background())
+	defer func() { _ = client.Disconnect(context.Background()) }()
 
 	// Test Sites service
 	sites, err := client.Sites().List(context.Background())
@@ -115,7 +115,7 @@ func TestClient_Integration_DeviceService(t *testing.T) {
 	if err := client.Connect(context.Background()); err != nil {
 		t.Fatalf("Connect() error = %v", err)
 	}
-	defer client.Disconnect(context.Background())
+	defer func() { _ = client.Disconnect(context.Background()) }()
 
 	// Test List
 	devices, err := client.Devices().List(context.Background(), "default")
@@ -198,7 +198,7 @@ func TestClient_Integration_ClientService(t *testing.T) {
 	if err := client.Connect(context.Background()); err != nil {
 		t.Fatalf("Connect() error = %v", err)
 	}
-	defer client.Disconnect(context.Background())
+	defer func() { _ = client.Disconnect(context.Background()) }()
 
 	// Test ListActive
 	clients, err := client.Clients().ListActive(context.Background(), "default")

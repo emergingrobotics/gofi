@@ -37,10 +37,14 @@ func TestLoadFixtures(t *testing.T) {
 
 	// Write fixtures to files
 	sitesData, _ := json.Marshal(sites)
-	os.WriteFile(filepath.Join(tmpDir, "sites.json"), sitesData, 0644)
+	if err := os.WriteFile(filepath.Join(tmpDir, "sites.json"), sitesData, 0644); err != nil {
+		t.Fatalf("Failed to write sites.json: %v", err)
+	}
 
 	devicesData, _ := json.Marshal(devices)
-	os.WriteFile(filepath.Join(tmpDir, "devices.json"), devicesData, 0644)
+	if err := os.WriteFile(filepath.Join(tmpDir, "devices.json"), devicesData, 0644); err != nil {
+		t.Fatalf("Failed to write devices.json: %v", err)
+	}
 
 	// Load fixtures
 	fixtures, err := LoadFixtures(tmpDir)
@@ -64,16 +68,17 @@ func TestLoadFixtures(t *testing.T) {
 func TestLoadFixtures_NonexistentDir(t *testing.T) {
 	_, err := LoadFixtures("/nonexistent/directory")
 	// Should not error on missing optional files, just return empty fixtures
-	if err != nil {
-		// It's ok if it errors on missing directory
-	}
+	// It's ok if it errors on missing directory - we don't enforce behavior here
+	_ = err
 }
 
 func TestLoadFixtures_InvalidJSON(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Write invalid JSON
-	os.WriteFile(filepath.Join(tmpDir, "sites.json"), []byte("{invalid json}"), 0644)
+	if err := os.WriteFile(filepath.Join(tmpDir, "sites.json"), []byte("{invalid json}"), 0644); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
 
 	_, err := LoadFixtures(tmpDir)
 	if err == nil {

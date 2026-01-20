@@ -71,6 +71,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// WebSocket endpoint
+	if strings.Contains(path, "/wss/") && strings.Contains(path, "/events") {
+		s.handleWebSocket(w, r)
+		return
+	}
+
 	// All other endpoints require authentication
 	if s.requireAuth {
 		if !s.isAuthenticated(r) {
@@ -264,20 +270,20 @@ func (s *Server) validateCSRF(r *http.Request) bool {
 // generateToken generates a random session token.
 func generateToken() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
 }
 
 // generateCSRFToken generates a random CSRF token.
 func generateCSRFToken() string {
 	b := make([]byte, 32)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
 }
 
 // generateID generates a random ID for resources.
 func generateID() string {
 	b := make([]byte, 12)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
 }

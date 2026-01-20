@@ -27,10 +27,7 @@ func BuildAPIPath(site, endpoint string) string {
 
 // BuildV2APIPath builds a v2 API path for a given site and endpoint.
 // Example: BuildV2APIPath("default", "site/default/trafficrules") -> "/proxy/network/v2/api/site/default/trafficrules"
-func BuildV2APIPath(site, endpoint string) string {
-	if site == "" {
-		site = "default"
-	}
+func BuildV2APIPath(_, endpoint string) string {
 	// v2 API uses full path including site in endpoint
 	return path.Join(BasePath, APIv2Base, endpoint)
 }

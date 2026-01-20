@@ -82,7 +82,7 @@ func (s *Server) BroadcastEvent(event *types.Event) {
 	for _, conn := range connections {
 		// Only send to connections for the same site
 		if conn.site == "" || conn.site == event.SiteID {
-			conn.conn.WriteMessage(websocket.TextMessage, data)
+			_ = conn.conn.WriteMessage(websocket.TextMessage, data)
 		}
 	}
 }

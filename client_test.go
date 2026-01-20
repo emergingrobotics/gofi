@@ -139,7 +139,7 @@ func TestClient_Connect_Success(t *testing.T) {
 	}
 
 	// Cleanup
-	client.Disconnect(context.Background())
+	_ = client.Disconnect(context.Background())
 }
 
 func TestClient_Connect_InvalidCredentials(t *testing.T) {
@@ -202,7 +202,7 @@ func TestClient_Connect_AlreadyConnected(t *testing.T) {
 	}
 
 	// Cleanup
-	client.Disconnect(context.Background())
+	_ = client.Disconnect(context.Background())
 }
 
 func TestClient_Disconnect(t *testing.T) {
@@ -268,13 +268,13 @@ func TestClient_IsConnected(t *testing.T) {
 	}
 
 	// After connect: true
-	client.Connect(context.Background())
+	_ = client.Connect(context.Background())
 	if !client.IsConnected() {
 		t.Error("IsConnected() should be true after Connect()")
 	}
 
 	// After disconnect: false
-	client.Disconnect(context.Background())
+	_ = client.Disconnect(context.Background())
 	if client.IsConnected() {
 		t.Error("IsConnected() should be false after Disconnect()")
 	}

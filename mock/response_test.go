@@ -98,7 +98,7 @@ func TestWriteForbidden(t *testing.T) {
 	var resp struct {
 		Meta types.ResponseMeta `json:"meta"`
 	}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
 
 	if resp.Meta.Message != "CSRF token invalid" {
 		t.Errorf("Message = %s, want 'CSRF token invalid'", resp.Meta.Message)

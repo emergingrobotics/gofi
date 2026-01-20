@@ -125,37 +125,6 @@ func (s *Server) handleSysInfo(w http.ResponseWriter, r *http.Request, site stri
 	writeAPIResponse(w, sysInfo)
 }
 
-// handleSiteREST handles REST operations on sites.
-func (s *Server) handleSiteREST(w http.ResponseWriter, r *http.Request, siteID string) {
-	switch r.Method {
-	case "GET":
-		if siteID == "" {
-			s.handleListSites(w, r)
-		} else {
-			s.handleGetSite(w, r, siteID)
-		}
-	case "POST":
-		s.handleCreateSite(w, r)
-	case "PUT":
-		s.handleUpdateSite(w, r, siteID)
-	case "DELETE":
-		s.handleDeleteSite(w, r, siteID)
-	default:
-		writeBadRequest(w, "Method not allowed")
-	}
-}
-
-// handleGetSite returns a specific site.
-func (s *Server) handleGetSite(w http.ResponseWriter, r *http.Request, id string) {
-	site, exists := s.state.GetSite(id)
-	if !exists {
-		writeNotFound(w)
-		return
-	}
-
-	writeAPIResponse(w, site)
-}
-
 // handleCreateSite creates a new site.
 func (s *Server) handleCreateSite(w http.ResponseWriter, r *http.Request) {
 	var req types.CreateSiteRequest
@@ -180,49 +149,4 @@ func (s *Server) handleCreateSite(w http.ResponseWriter, r *http.Request) {
 	s.state.AddSite(site)
 
 	writeAPIResponse(w, site)
-}
-
-// handleUpdateSite updates a site.
-func (s *Server) handleUpdateSite(w http.ResponseWriter, r *http.Request, id string) {
-	site, exists := s.state.GetSite(id)
-	if !exists {
-		writeNotFound(w)
-		return
-	}
-
-	var req types.UpdateSiteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeBadRequest(w, "Invalid request body")
-		return
-	}
-
-	// Update fields
-	if req.Desc != "" {
-		site.Desc = req.Desc
-	}
-	if req.Name != "" {
-		site.Name = req.Name
-	}
-
-	s.state.AddSite(site)
-
-	writeAPIResponse(w, site)
-}
-
-// handleDeleteSite deletes a site.
-func (s *Server) handleDeleteSite(w http.ResponseWriter, r *http.Request, id string) {
-	if id == "default" {
-		writeBadRequest(w, "Cannot delete default site")
-		return
-	}
-
-	_, exists := s.state.GetSite(id)
-	if !exists {
-		writeNotFound(w)
-		return
-	}
-
-	s.state.DeleteSite(id)
-
-	writeAPIResponse(w, map[string]string{})
 }

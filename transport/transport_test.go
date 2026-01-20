@@ -70,7 +70,7 @@ func TestTransport_Do_GET(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}))
 	defer server.Close()
 
@@ -131,7 +131,7 @@ func TestTransport_Do_POST(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]string{"id": "123"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"id": "123"})
 	}))
 	defer server.Close()
 
