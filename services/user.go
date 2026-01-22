@@ -198,13 +198,31 @@ func (s *userService) ClearFixedIP(ctx context.Context, site, mac string) error 
 		return err
 	}
 
-	// Clear fixed IP settings
-	user.UseFixedIP = false
-	user.FixedIP = ""
-	user.NetworkID = ""
+	// Build payload with required fields plus explicit use_fixedip:false
+	// The API requires the MAC and typically other fields to be present
+	payload := map[string]interface{}{
+		"mac":         user.MAC,
+		"use_fixedip": false,
+	}
 
-	_, err = s.Update(ctx, site, user)
-	return err
+	// Include name if present (some API versions require it)
+	if user.Name != "" {
+		payload["name"] = user.Name
+	}
+
+	path := internal.BuildRESTPath(site, "user", user.ID)
+	req := transport.NewRequest("PUT", path).WithBody(payload)
+
+	resp, err := s.transport.Do(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to clear fixed IP: %w", err)
+	}
+
+	if !resp.IsSuccess() {
+		return fmt.Errorf("clear fixed IP failed with status %d: %s", resp.StatusCode, string(resp.Body))
+	}
+
+	return nil
 }
 
 // ListGroups returns all user groups.

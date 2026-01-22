@@ -1,7 +1,7 @@
 .PHONY: all build test lint clean coverage examples examples-clean examples-test help
 
 # All examples
-EXAMPLES := basic crud errors concurrent websocket list
+EXAMPLES := basic crud errors concurrent websocket list fixedips addfixedip delfixedip
 
 all: lint test build
 

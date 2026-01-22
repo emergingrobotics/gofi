@@ -97,13 +97,166 @@ The client provides access to all major UniFi services:
 
 ## Examples
 
-See the [examples](./examples/) directory for comprehensive usage examples:
+See the [examples](./examples/) directory for comprehensive usage examples. Build all examples with `make build`.
 
-- **[basic](./examples/basic/)** - Basic client usage
-- **[crud](./examples/crud/)** - Creating and managing resources
-- **[concurrent](./examples/concurrent/)** - Batch/concurrent operations
-- **[websocket](./examples/websocket/)** - Real-time event streaming
-- **[errors](./examples/errors/)** - Error handling patterns
+All examples require environment variables for authentication:
+```bash
+export UNIFI_USERNAME=your_username
+export UNIFI_PASSWORD=your_password
+```
+
+### list
+
+Lists all networks from the controller in table or JSON format.
+
+```bash
+./bin/examples/list -H 192.168.1.1 -k           # Table output
+./bin/examples/list -H 192.168.1.1 -k -j        # JSON output
+./bin/examples/list -H 192.168.1.1 -k -s mysite # Specific site
+```
+
+| Flag | Description |
+|------|-------------|
+| `-H, --host` | UDM Pro host address (required) |
+| `-p, --port` | Port (default: 443) |
+| `-s, --site` | Site name (default: "default") |
+| `-k, --insecure` | Skip TLS certificate verification |
+| `-j, --json` | Output in JSON format |
+| `-d, --debug` | Enable debug output |
+
+### basic
+
+Demonstrates basic client usage: connecting, listing sites, devices, networks, and health status.
+
+```bash
+./bin/examples/basic -H 192.168.1.1 -k
+./bin/examples/basic -H 192.168.1.1 -k -d       # With debug output
+```
+
+| Flag | Description |
+|------|-------------|
+| `-H, --host` | UDM Pro host address (required) |
+| `-p, --port` | Port (default: 443) |
+| `-s, --site` | Site name (default: "default") |
+| `-k, --insecure` | Skip TLS certificate verification |
+| `-d, --debug` | Enable debug output |
+| `-t, --timeout` | Connection timeout (default: 30s) |
+
+### crud
+
+Demonstrates Create, Read, Update, Delete operations for networks and WLANs. Creates a test IoT network and Guest WiFi WLAN, updates them, then cleans up.
+
+```bash
+./bin/examples/crud -H 192.168.1.1 -k
+```
+
+**Note:** This example modifies your controller configuration. Use with caution.
+
+### concurrent
+
+Demonstrates batch/concurrent operations using `gofi.BatchGet` to fetch multiple devices in parallel.
+
+```bash
+./bin/examples/concurrent -H 192.168.1.1 -k
+```
+
+### websocket
+
+Subscribes to real-time WebSocket events from the controller. Displays client connect/disconnect events, AP events, and more. Press Ctrl+C to exit.
+
+```bash
+./bin/examples/websocket -H 192.168.1.1 -k
+```
+
+### errors
+
+Demonstrates error handling patterns including:
+- Connection errors (authentication, timeout)
+- Resource not found errors
+- API error details extraction
+- Validation errors
+- Automatic retry configuration
+
+```bash
+./bin/examples/errors -H 192.168.1.1 -k
+```
+
+### fixedips
+
+Lists all clients that have fixed IP addresses assigned. Useful for auditing DHCP reservations.
+
+```bash
+./bin/examples/fixedips -H 192.168.1.1 -k           # Table output
+./bin/examples/fixedips -H 192.168.1.1 -k -j        # JSON output
+./bin/examples/fixedips -H 192.168.1.1 -k -j | jq   # Pipe to jq
+```
+
+| Flag | Description |
+|------|-------------|
+| `-H, --host` | UDM Pro host address (required) |
+| `-p, --port` | Port (default: 443) |
+| `-s, --site` | Site name (default: "default") |
+| `-k, --insecure` | Skip TLS certificate verification |
+| `-j, --json` | Output in JSON format |
+
+### addfixedip
+
+Assigns a fixed IP address to a device by MAC address. Checks for conflicts before assignment.
+
+```bash
+# Basic usage - auto-detect network from IP
+./bin/examples/addfixedip -H 192.168.1.1 -k -m aa:bb:cc:dd:ee:ff -i 192.168.1.100 -n "My Device"
+
+# Specify network explicitly
+./bin/examples/addfixedip -H 192.168.1.1 -k -m aa:bb:cc:dd:ee:ff -i 192.168.1.100 -n "My Device" -N "LAN"
+
+# Skip conflict checks
+./bin/examples/addfixedip -H 192.168.1.1 -k -m aa:bb:cc:dd:ee:ff -i 192.168.1.100 -n "My Device" -f
+```
+
+| Flag | Description |
+|------|-------------|
+| `-H, --host` | UDM Pro host address (required) |
+| `-p, --port` | Port (default: 443) |
+| `-s, --site` | Site name (default: "default") |
+| `-k, --insecure` | Skip TLS certificate verification |
+| `-m, --mac` | MAC address of device (required) |
+| `-i, --ip` | Fixed IP address to assign (required) |
+| `-n, --name` | Hostname/friendly name (required) |
+| `-N, --network` | Network ID or name (auto-detects if not specified) |
+| `-f, --force` | Skip conflict checks |
+
+**Conflict checks:**
+- Warns if IP is currently in use by an active client
+- Warns if IP is already reserved for a different MAC
+- Updates existing reservation if MAC already has a fixed IP
+
+### delfixedip
+
+Removes a fixed IP assignment from a device, allowing it to use DHCP for a dynamic address.
+
+```bash
+# Remove by MAC address
+./bin/examples/delfixedip -H 192.168.1.1 -k -m aa:bb:cc:dd:ee:ff
+
+# Remove by IP address
+./bin/examples/delfixedip -H 192.168.1.1 -k -i 192.168.1.100
+
+# Delete the user entry entirely (not just the fixed IP)
+./bin/examples/delfixedip -H 192.168.1.1 -k -m aa:bb:cc:dd:ee:ff -D
+```
+
+| Flag | Description |
+|------|-------------|
+| `-H, --host` | UDM Pro host address (required) |
+| `-p, --port` | Port (default: 443) |
+| `-s, --site` | Site name (default: "default") |
+| `-k, --insecure` | Skip TLS certificate verification |
+| `-m, --mac` | MAC address of device |
+| `-i, --ip` | Fixed IP address to look up |
+| `-D, --delete` | Delete the user entry entirely (not just the fixed IP) |
+
+**Note:** Either `--mac` or `--ip` must be specified to identify the device.
 
 ## API Coverage
 
