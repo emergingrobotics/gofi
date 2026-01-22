@@ -73,24 +73,72 @@ func (m *manager) Login(ctx context.Context) error {
 		return fmt.Errorf("login request failed: %w", err)
 	}
 
-	// Check response status
-	if !resp.IsSuccess() {
-		return fmt.Errorf("login failed: status %d", resp.StatusCode)
+	// Check response status - UDM Pro v10+ returns 403 with JSON error on auth failure
+	if resp.StatusCode == 401 || resp.StatusCode == 403 {
+		// Try to parse the error response (newer UDM format)
+		var errResp struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(resp.Body, &errResp); err == nil && errResp.Message != "" {
+			return fmt.Errorf("login failed: %s", errResp.Message)
+		}
+		return fmt.Errorf("login failed: status %d (check credentials)", resp.StatusCode)
 	}
 
-	// Parse response
+	if !resp.IsSuccess() {
+		// Try to parse error response
+		var errResp struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(resp.Body, &errResp); err == nil && errResp.Message != "" {
+			return fmt.Errorf("login failed: %s", errResp.Message)
+		}
+		return fmt.Errorf("login failed: status %d, body: %s", resp.StatusCode, truncateBody(resp.Body))
+	}
+
+	// Try parsing as standard UniFi response with meta.rc
 	var loginResp struct {
 		Meta struct {
-			RC string `json:"rc"`
+			RC      string `json:"rc"`
+			Message string `json:"msg"`
 		} `json:"meta"`
+		Errors []string `json:"errors"`
 	}
 
 	if err := json.Unmarshal(resp.Body, &loginResp); err != nil {
-		return fmt.Errorf("failed to parse login response: %w", err)
+		// If we can't parse but got 200, might be a different response format
+		// Check if we got a CSRF token which indicates success
+		csrfToken := resp.Headers.Get("X-CSRF-Token")
+		if csrfToken == "" {
+			return fmt.Errorf("failed to parse login response: %w (body: %s)", err, truncateBody(resp.Body))
+		}
+		// Got CSRF token, assume success
+		m.csrf.Set(csrfToken)
+		m.transport.SetCSRFToken(csrfToken)
+		m.session = &Session{
+			Token:     "authenticated",
+			CSRFToken: csrfToken,
+			ExpiresAt: time.Now().Add(24 * time.Hour),
+			Username:  m.username,
+			CreatedAt: time.Now(),
+		}
+		return nil
 	}
 
-	if loginResp.Meta.RC != "ok" {
-		return fmt.Errorf("login failed: rc=%s", loginResp.Meta.RC)
+	// Check for errors array (some UDM versions use this)
+	if len(loginResp.Errors) > 0 {
+		return fmt.Errorf("login failed: %s", loginResp.Errors[0])
+	}
+
+	// Check meta.rc
+	if loginResp.Meta.RC != "" && loginResp.Meta.RC != "ok" {
+		msg := loginResp.Meta.Message
+		if msg == "" {
+			msg = loginResp.Meta.RC
+		}
+		return fmt.Errorf("login failed: %s", msg)
 	}
 
 	// Extract CSRF token from response headers
@@ -110,6 +158,15 @@ func (m *manager) Login(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// truncateBody returns a truncated version of the response body for error messages.
+func truncateBody(body []byte) string {
+	const maxLen = 200
+	if len(body) <= maxLen {
+		return string(body)
+	}
+	return string(body[:maxLen]) + "..."
 }
 
 // Logout ends the current session.
