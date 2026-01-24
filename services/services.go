@@ -277,3 +277,30 @@ type EventService interface {
 	Subscribe(ctx context.Context, site string) (<-chan types.Event, <-chan error, error)
 	Close() error
 }
+
+// DNSService provides local DNS record management.
+type DNSService interface {
+	// List returns all local DNS records.
+	List(ctx context.Context, site string) ([]types.DNSRecord, error)
+
+	// Get returns a DNS record by ID.
+	Get(ctx context.Context, site, id string) (*types.DNSRecord, error)
+
+	// GetByName returns a DNS record by hostname/key.
+	GetByName(ctx context.Context, site, name string) (*types.DNSRecord, error)
+
+	// GetByIP returns DNS records pointing to a specific IP.
+	GetByIP(ctx context.Context, site, ip string) ([]types.DNSRecord, error)
+
+	// Create creates a new DNS record.
+	Create(ctx context.Context, site string, record *types.DNSRecord) (*types.DNSRecord, error)
+
+	// Update updates an existing DNS record.
+	Update(ctx context.Context, site string, record *types.DNSRecord) (*types.DNSRecord, error)
+
+	// Delete deletes a DNS record by ID.
+	Delete(ctx context.Context, site, id string) error
+
+	// DeleteByName deletes a DNS record by hostname/key.
+	DeleteByName(ctx context.Context, site, name string) error
+}

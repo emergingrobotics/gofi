@@ -22,13 +22,14 @@ var macRegex = regexp.MustCompile(`^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$`)
 
 func main() {
 	var (
-		host     = flag.String("host", "", "UDM Pro host address (required)")
-		port     = flag.Int("port", 443, "UDM Pro port")
-		site     = flag.String("site", "default", "Site name")
-		insecure = flag.Bool("insecure", false, "Skip TLS certificate verification")
-		mac      = flag.String("mac", "", "MAC address of device")
-		ip       = flag.String("ip", "", "Fixed IP address to look up")
-		delUser  = flag.Bool("delete", false, "Delete the user entry entirely (not just the fixed IP)")
+		host      = flag.String("host", "", "UDM Pro host address (required)")
+		port      = flag.Int("port", 443, "UDM Pro port")
+		site      = flag.String("site", "default", "Site name")
+		insecure  = flag.Bool("insecure", false, "Skip TLS certificate verification")
+		mac       = flag.String("mac", "", "MAC address of device")
+		ip        = flag.String("ip", "", "Fixed IP address to look up")
+		delUser   = flag.Bool("delete", false, "Delete the user entry entirely (not just the fixed IP)")
+		keepDNS   = flag.Bool("keep-dns", false, "Don't delete associated DNS records")
 	)
 
 	flag.StringVar(host, "H", "", "UDM Pro host address (shorthand)")
@@ -38,11 +39,14 @@ func main() {
 	flag.StringVar(mac, "m", "", "MAC address of device (shorthand)")
 	flag.StringVar(ip, "i", "", "Fixed IP address to look up (shorthand)")
 	flag.BoolVar(delUser, "D", false, "Delete the user entry entirely (shorthand)")
+	flag.BoolVar(keepDNS, "K", false, "Don't delete associated DNS records (shorthand)")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Remove a fixed IP assignment, allowing the device to get a dynamic address.\n")
 		fmt.Fprintf(os.Stderr, "Specify the device by MAC address (-m) or by its current fixed IP (-i).\n\n")
+		fmt.Fprintf(os.Stderr, "By default, any local DNS records pointing to the fixed IP are also deleted.\n")
+		fmt.Fprintf(os.Stderr, "Use --keep-dns to preserve DNS records.\n\n")
 		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
 		fmt.Fprintf(os.Stderr, "  %s\tUsername for UDM authentication (required)\n", envUsername)
 		fmt.Fprintf(os.Stderr, "  %s\tPassword for UDM authentication (required)\n\n", envPassword)
@@ -54,11 +58,13 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  -m, --mac string\tMAC address of device\n")
 		fmt.Fprintf(os.Stderr, "  -i, --ip string\tFixed IP address to look up\n")
 		fmt.Fprintf(os.Stderr, "  -D, --delete\t\tDelete the user entry entirely (not just the fixed IP)\n")
+		fmt.Fprintf(os.Stderr, "  -K, --keep-dns\tDon't delete associated DNS records\n")
 		fmt.Fprintf(os.Stderr, "  -h, --help\t\tShow this help message\n\n")
 		fmt.Fprintf(os.Stderr, "Examples:\n")
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k -m aa:bb:cc:dd:ee:ff\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k -i 192.168.1.100\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k -m aa:bb:cc:dd:ee:ff -D  # Delete user entirely\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k -m aa:bb:cc:dd:ee:ff -K  # Keep DNS records\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k -m aa:bb:cc:dd:ee:ff -D   # Delete user entirely\n", os.Args[0])
 	}
 
 	flag.Parse()
@@ -142,9 +148,33 @@ func main() {
 		fmt.Printf("  Fixed IP: (none)\n")
 	}
 
+	// Check for DNS records pointing to this IP
+	var dnsRecords []types.DNSRecord
+	if user.UseFixedIP && user.FixedIP != "" {
+		dnsRecords, _ = client.DNS().GetByIP(ctx, *site, user.FixedIP)
+		if len(dnsRecords) > 0 {
+			fmt.Printf("  DNS Records:\n")
+			for _, r := range dnsRecords {
+				fmt.Printf("    - %s -> %s\n", r.Key, r.Value)
+			}
+		}
+	}
+
 	// Delete or clear fixed IP
 	if *delUser {
 		// Delete the user entry entirely
+		// First delete DNS records if needed
+		if !*keepDNS && len(dnsRecords) > 0 {
+			fmt.Printf("\nDeleting %d DNS record(s)...\n", len(dnsRecords))
+			for _, r := range dnsRecords {
+				if err := client.DNS().Delete(ctx, *site, r.ID); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to delete DNS record %s: %v\n", r.Key, err)
+				} else {
+					fmt.Printf("  Deleted DNS record: %s\n", r.Key)
+				}
+			}
+		}
+
 		if err := client.Users().Delete(ctx, *site, user.ID); err != nil {
 			exitError("failed to delete user: " + err.Error())
 		}
@@ -156,15 +186,26 @@ func main() {
 			return
 		}
 
+		// Delete DNS records first if needed
+		if !*keepDNS && len(dnsRecords) > 0 {
+			fmt.Printf("\nDeleting %d DNS record(s) that depend on the fixed IP...\n", len(dnsRecords))
+			for _, r := range dnsRecords {
+				if err := client.DNS().Delete(ctx, *site, r.ID); err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: failed to delete DNS record %s: %v\n", r.Key, err)
+				} else {
+					fmt.Printf("  Deleted DNS record: %s\n", r.Key)
+				}
+			}
+		}
+
+		// Now clear the fixed IP
 		err := client.Users().ClearFixedIP(ctx, *site, user.MAC)
 		if err != nil {
 			errStr := err.Error()
 			if strings.Contains(errStr, "LocalDnsRecordRequiresFixedIp") {
-				fmt.Fprintf(os.Stderr, "\nError: This device has a local DNS record that depends on the fixed IP.\n")
-				fmt.Fprintf(os.Stderr, "You must delete the DNS record first:\n")
-				fmt.Fprintf(os.Stderr, "  1. Go to UniFi Network UI -> Settings -> DNS\n")
-				fmt.Fprintf(os.Stderr, "  2. Find and delete the DNS record for '%s'\n", userName)
-				fmt.Fprintf(os.Stderr, "  3. Then run this command again\n")
+				fmt.Fprintf(os.Stderr, "\nError: There are still DNS records depending on this fixed IP.\n")
+				fmt.Fprintf(os.Stderr, "This can happen if DNS records were added after we checked.\n")
+				fmt.Fprintf(os.Stderr, "Please try again or manually delete the DNS records.\n")
 				os.Exit(1)
 			}
 			exitError("failed to clear fixed IP: " + err.Error())

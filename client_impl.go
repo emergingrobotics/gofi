@@ -36,7 +36,7 @@ type client struct {
 	portProfileService  services.PortProfileService
 	settingService      services.SettingService
 	systemService       services.SystemService
-	// Other services will be added in later phases
+	dnsService          services.DNSService
 
 	logger Logger
 }
@@ -330,4 +330,16 @@ func (c *client) System() services.SystemService {
 // Events returns the event service.
 func (c *client) Events() services.EventService {
 	return nil // Implemented in Phase 18
+}
+
+// DNS returns the DNS service.
+func (c *client) DNS() services.DNSService {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.dnsService == nil {
+		c.dnsService = services.NewDNSService(c.transport)
+	}
+
+	return c.dnsService
 }
