@@ -27,4 +27,5 @@ type Client interface {
 	Settings() services.SettingService
 	System() services.SystemService
 	Events() services.EventService
+	DNS() services.DNSService
 }

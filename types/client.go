@@ -55,12 +55,12 @@ type Client struct {
 	GuestKicked     bool    `json:"guest_kicked,omitempty"`
 	GuestVoucher    string  `json:"guest_voucher,omitempty"`
 
-	// Device fingerprinting
-	DeviceIDOverride int    `json:"dev_id_override,omitempty"`
-	DeviceVendor     string `json:"dev_vendor,omitempty"`
-	DeviceFamily     string `json:"dev_family,omitempty"`
-	OSName           string `json:"os_name,omitempty"`
-	OSClass          int    `json:"os_class,omitempty"`
+	// Device fingerprinting - these fields have inconsistent types in the API
+	DeviceIDOverride interface{} `json:"dev_id_override,omitempty"`
+	DeviceVendor     interface{} `json:"dev_vendor,omitempty"`
+	DeviceFamily     interface{} `json:"dev_family,omitempty"`
+	OSName           interface{} `json:"os_name,omitempty"`
+	OSClass          interface{} `json:"os_class,omitempty"`
 
 	// Switch port info (for wired clients)
 	SWPORT          int    `json:"sw_port,omitempty"`

@@ -191,6 +191,7 @@ func (s *userService) SetFixedIP(ctx context.Context, site, mac, ip, networkID s
 }
 
 // ClearFixedIP removes a fixed IP assignment.
+// This also clears the local_dns_record field to remove auto-generated DNS entries.
 func (s *userService) ClearFixedIP(ctx context.Context, site, mac string) error {
 	// Get user by MAC
 	user, err := s.GetByMAC(ctx, site, mac)
@@ -199,10 +200,12 @@ func (s *userService) ClearFixedIP(ctx context.Context, site, mac string) error 
 	}
 
 	// Build payload with required fields plus explicit use_fixedip:false
-	// The API requires the MAC and typically other fields to be present
+	// Also disable local_dns_record to remove auto-generated DNS entries
+	// that UniFi creates for devices with fixed IPs and names
 	payload := map[string]interface{}{
-		"mac":         user.MAC,
-		"use_fixedip": false,
+		"mac":                      user.MAC,
+		"use_fixedip":              false,
+		"local_dns_record_enabled": false,
 	}
 
 	// Include name if present (some API versions require it)

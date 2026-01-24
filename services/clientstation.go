@@ -24,7 +24,7 @@ func NewClientService(transport transport.Transport) ClientService {
 
 // ListActive returns all currently connected clients.
 func (s *clientStationService) ListActive(ctx context.Context, site string) ([]types.Client, error) {
-	path := fmt.Sprintf("/api/s/%s/stat/sta", site)
+	path := internal.BuildAPIPath(site, "stat/sta")
 	req := transport.NewRequest("GET", path)
 
 	resp, err := s.transport.Do(ctx, req)
@@ -53,7 +53,7 @@ func (s *clientStationService) ListAll(ctx context.Context, site string, opts ..
 		opt(options)
 	}
 
-	path := fmt.Sprintf("/api/s/%s/stat/alluser", site)
+	path := internal.BuildAPIPath(site, "stat/alluser")
 	if options.withinHours > 0 {
 		path += "?within=" + strconv.Itoa(options.withinHours)
 	}
@@ -137,7 +137,7 @@ func (s *clientStationService) AuthorizeGuest(ctx context.Context, site, mac str
 		payload["ap_mac"] = options.apMAC
 	}
 
-	path := fmt.Sprintf("/api/s/%s/cmd/stamgr", site)
+	path := internal.BuildAPIPath(site, "cmd/stamgr")
 	req := transport.NewRequest("POST", path).WithBody(payload)
 
 	resp, err := s.transport.Do(ctx, req)
@@ -182,7 +182,7 @@ func (s *clientStationService) executeCommand(ctx context.Context, site, cmd, ma
 		payload[k] = v
 	}
 
-	path := fmt.Sprintf("/api/s/%s/cmd/stamgr", site)
+	path := internal.BuildAPIPath(site, "cmd/stamgr")
 	req := transport.NewRequest("POST", path).WithBody(payload)
 
 	resp, err := s.transport.Do(ctx, req)

@@ -258,6 +258,8 @@ Removes a fixed IP assignment from a device, allowing it to use DHCP for a dynam
 
 **Note:** Either `--mac` or `--ip` must be specified to identify the device.
 
+**New:** The tool now automatically deletes any local DNS records pointing to the fixed IP before removing the assignment. Use `--keep-dns` to preserve DNS records.
+
 ## API Coverage
 
 ### Device Management
