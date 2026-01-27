@@ -41,9 +41,9 @@ for _, port := range device.PortTable {
     if port.PortPoe {
         fmt.Printf("Port %d: PoE=%v, Power=%.1fW, Voltage=%.1fV, Current=%.0fmA\n",
             port.PortIdx, port.PoeEnable,
-            float64(port.PoePower)/1000,  // Often milliwatts
-            float64(port.PoeVoltage)/1000,
-            float64(port.PoeCurrent))
+            port.PoePower.Float64(),   // Watts
+            port.PoeVoltage.Float64(), // Volts
+            port.PoeCurrent.Float64()) // Milliamps
     }
 }
 ```

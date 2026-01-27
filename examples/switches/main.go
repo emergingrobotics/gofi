@@ -84,18 +84,18 @@ type SwitchInfo struct {
 
 // PortInfo holds per-port information.
 type PortInfo struct {
-	Index       int     `json:"index"`
-	Name        string  `json:"name,omitempty"`
-	Up          bool    `json:"up"`
-	Speed       int     `json:"speed_mbps"`
-	PoECapable  bool    `json:"poe_capable"`
-	PoEEnabled  bool    `json:"poe_enabled,omitempty"`
-	PoEGood     bool    `json:"poe_good,omitempty"`
-	PoEMode     string  `json:"poe_mode,omitempty"`
-	PoEPowerW   float64 `json:"poe_power_watts,omitempty"`
-	PoEVoltageV float64 `json:"poe_voltage_v,omitempty"`
-	PoECurrentMA float64 `json:"poe_current_ma,omitempty"`
-	PoEClass    string  `json:"poe_class,omitempty"`
+	Index        int     `json:"index"`
+	Name         string  `json:"name"`
+	Up           bool    `json:"up"`
+	Speed        int     `json:"speed_mbps"`
+	PoECapable   bool    `json:"poe_capable"`
+	PoEEnabled   bool    `json:"poe_enabled"`
+	PoEGood      bool    `json:"poe_good"`
+	PoEMode      string  `json:"poe_mode"`
+	PoEPowerW    float64 `json:"poe_power_watts"`
+	PoEVoltageV  float64 `json:"poe_voltage_v"`
+	PoECurrentMA float64 `json:"poe_current_ma"`
+	PoEClass     string  `json:"poe_class"`
 }
 
 func main() {
@@ -290,20 +290,36 @@ func toSwitchInfo(d types.Device, includePorts bool) SwitchInfo {
 	if includePorts && len(d.PortTable) > 0 {
 		info.Ports = make([]PortInfo, len(d.PortTable))
 		for i, p := range d.PortTable {
-			info.Ports[i] = PortInfo{
-				Index:        p.PortIdx,
-				Name:         p.Name,
-				Up:           p.Up,
-				Speed:        p.Speed,
-				PoECapable:   p.PortPoe,
-				PoEEnabled:   p.PoeEnable,
-				PoEGood:      p.PoeGood,
-				PoEMode:      p.PoeMode,
-				PoEPowerW:    p.PoePower.Float64() / 1000.0,
-				PoEVoltageV:  p.PoeVoltage.Float64() / 1000.0,
-				PoECurrentMA: p.PoeCurrent.Float64(),
-				PoEClass:     p.PoeClass,
+			portInfo := PortInfo{
+				Index:      p.PortIdx,
+				Name:       p.Name,
+				Up:         p.Up,
+				Speed:      p.Speed,
+				PoECapable: p.PortPoe,
 			}
+
+			if p.PortPoe {
+				// PoE-capable port: populate all PoE fields
+				portInfo.PoEEnabled = p.PoeEnable
+				portInfo.PoEGood = p.PoeGood
+				portInfo.PoEMode = p.PoeMode
+				if portInfo.PoEMode == "" {
+					portInfo.PoEMode = "off"
+				}
+				portInfo.PoEPowerW = p.PoePower.Float64()
+				portInfo.PoEVoltageV = p.PoeVoltage.Float64()
+				portInfo.PoECurrentMA = p.PoeCurrent.Float64()
+				portInfo.PoEClass = p.PoeClass
+				if portInfo.PoEClass == "" {
+					portInfo.PoEClass = "Unknown"
+				}
+			} else {
+				// Non-PoE port: use N/A indicators
+				portInfo.PoEMode = "N/A"
+				portInfo.PoEClass = "N/A"
+			}
+
+			info.Ports[i] = portInfo
 		}
 	}
 
