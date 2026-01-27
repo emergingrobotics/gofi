@@ -73,8 +73,8 @@ type Device struct {
 	Storage         []Storage `json:"storage,omitempty"`
 
 	// Miscellaneous
-	Displayable     bool   `json:"displayable_version,omitempty"`
-	Required        bool   `json:"required_version,omitempty"`
+	DisplayableVersion string `json:"displayable_version,omitempty"`
+	RequiredVersion    string `json:"required_version,omitempty"`
 	Satisfaction    int    `json:"satisfaction,omitempty"`
 	Isolated        bool   `json:"isolated,omitempty"`
 	KernelVersion   string `json:"kernel_version,omitempty"`
@@ -163,7 +163,7 @@ type RadioTable struct {
 	MaxTXPower        int     `json:"max_txpower,omitempty"`
 	MinTXPower        int     `json:"min_txpower,omitempty"`
 	Nss               int     `json:"nss,omitempty"`
-	Radio5GHz         bool    `json:"radio_caps,omitempty"`
+	RadioCaps         int     `json:"radio_caps,omitempty"`
 	HasDFS            bool    `json:"has_dfs,omitempty"`
 	HasFCCDFS         bool    `json:"has_fccdfs,omitempty"`
 	CurrentAntenna    int     `json:"current_antenna_gain,omitempty"`
