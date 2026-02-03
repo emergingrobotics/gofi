@@ -16,6 +16,7 @@ import (
 const (
 	envUsername = "UNIFI_USERNAME"
 	envPassword = "UNIFI_PASSWORD"
+	envUDMIP    = "UNIFI_UDM_IP"
 )
 
 var macRegex = regexp.MustCompile(`^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$`)
@@ -45,12 +46,13 @@ func main() {
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "Add a fixed IP assignment for a device.\n\n")
+		fmt.Fprintf(os.Stderr, "Add a fixed IP assignment for a device and create DNS record.\n\n")
 		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
 		fmt.Fprintf(os.Stderr, "  %s\tUsername for UDM authentication (required)\n", envUsername)
-		fmt.Fprintf(os.Stderr, "  %s\tPassword for UDM authentication (required)\n\n", envPassword)
+		fmt.Fprintf(os.Stderr, "  %s\tPassword for UDM authentication (required)\n", envPassword)
+		fmt.Fprintf(os.Stderr, "  %s\tUDM Pro host address (optional, can use -H instead)\n\n", envUDMIP)
 		fmt.Fprintf(os.Stderr, "Options:\n")
-		fmt.Fprintf(os.Stderr, "  -H, --host string\tUDM Pro host address (required)\n")
+		fmt.Fprintf(os.Stderr, "  -H, --host string\tUDM Pro host address (required unless %s is set)\n", envUDMIP)
 		fmt.Fprintf(os.Stderr, "  -p, --port int\tUDM Pro port (default 443)\n")
 		fmt.Fprintf(os.Stderr, "  -s, --site string\tSite name (default \"default\")\n")
 		fmt.Fprintf(os.Stderr, "  -k, --insecure\tSkip TLS certificate verification\n")
@@ -62,14 +64,20 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  -h, --help\t\tShow this help message\n\n")
 		fmt.Fprintf(os.Stderr, "Examples:\n")
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k -m aa:bb:cc:dd:ee:ff -i 192.168.1.100 -n \"My Device\"\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -m aa:bb:cc:dd:ee:ff -i 192.168.1.100 -n \"mydevice\" -k  # Uses %s\n", os.Args[0], envUDMIP)
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k -m aa:bb:cc:dd:ee:ff -i 192.168.1.100 -n \"My Device\" -N \"LAN\"\n", os.Args[0])
 	}
 
 	flag.Parse()
 
+	// Check for host from environment variable if not provided
+	if *host == "" {
+		*host = os.Getenv(envUDMIP)
+	}
+
 	// Validate required parameters
 	if *host == "" {
-		exitError("--host is required")
+		exitError("--host is required (or set " + envUDMIP + " environment variable)")
 	}
 	if *mac == "" {
 		exitError("--mac is required")
@@ -190,6 +198,14 @@ func assignFixedIP(ctx context.Context, client gofi.Client, site, mac, ip, name,
 	fmt.Printf("  IP:      %s\n", ip)
 	fmt.Printf("  Network: %s\n", networkName)
 
+	// Step 4: Create or update DNS record
+	if err := createDNSRecord(ctx, client, site, name, ip); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to create DNS record: %v\n", err)
+		fmt.Fprintf(os.Stderr, "The fixed IP assignment was created, but DNS must be configured manually.\n")
+	} else {
+		fmt.Printf("  DNS:     %s -> %s\n", name, ip)
+	}
+
 	return nil
 }
 
@@ -294,6 +310,38 @@ func resolveNetwork(ctx context.Context, client gofi.Client, site, ip, networkHi
 	}
 
 	return "", "", fmt.Errorf("please specify network with --network flag")
+}
+
+func createDNSRecord(ctx context.Context, client gofi.Client, site, hostname, ip string) error {
+	// Check if DNS record already exists
+	existingRecords, _ := client.DNS().GetByIP(ctx, site, ip)
+
+	for _, record := range existingRecords {
+		if record.Key == hostname {
+			// DNS record already exists with this hostname
+			return nil
+		}
+		// Different hostname points to this IP - update it
+		record.Key = hostname
+		if _, err := client.DNS().Update(ctx, site, &record); err != nil {
+			return fmt.Errorf("failed to update existing DNS record: %w", err)
+		}
+		return nil
+	}
+
+	// Create new DNS record
+	dnsRecord := &types.DNSRecord{
+		Key:        hostname,
+		Value:      ip,
+		RecordType: "A",
+		Enabled:    true,
+	}
+
+	if _, err := client.DNS().Create(ctx, site, dnsRecord); err != nil {
+		return fmt.Errorf("failed to create DNS record: %w", err)
+	}
+
+	return nil
 }
 
 func exitError(msg string) {
