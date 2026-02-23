@@ -1,3 +1,5 @@
+<img src="images/gofi-logo.png" width="33%" alt="gofi logo">
+
 # gofi - Go UniFi Controller Client
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/unifi-go/gofi.svg)](https://pkg.go.dev/github.com/unifi-go/gofi)
