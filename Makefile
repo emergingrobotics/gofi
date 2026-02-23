@@ -4,9 +4,11 @@
 EXAMPLES := basic crud errors concurrent websocket list fixedips addfixedip delfixedip switches
 
 # All utilities
-UTILITIES := gofip
+UTILITIES := gofip gofips
 
-all: lint test build
+.DEFAULT_GOAL := help
+
+all: lint test build utilities
 
 build:
 	go build ./...
@@ -53,22 +55,22 @@ examples-test:
 
 # Build all utilities
 utilities:
-	@mkdir -p bin/utilities
+	@mkdir -p bin
 	@for util in $(UTILITIES); do \
 		echo "Building $$util..."; \
-		go build -o bin/utilities/$$util ./utilities/$$util; \
+		go build -o bin/$$util ./utilities/$$util; \
 	done
-	@echo "All utilities built in bin/utilities/"
+	@echo "All utilities built in bin/"
 
 # Clean utility binaries
 utilities-clean:
-	rm -rf bin/utilities/
+	rm -rf bin/
 
-# Install utilities to /usr/local/bin
+# Install utilities to /usr/local/bin (requires sudo)
 install: utilities
 	@for util in $(UTILITIES); do \
 		echo "Installing $$util to /usr/local/bin/$$util"; \
-		install -m 755 bin/utilities/$$util /usr/local/bin/$$util; \
+		sudo install -m 755 bin/$$util /usr/local/bin/$$util; \
 	done
 	@echo "All utilities installed."
 
@@ -90,6 +92,6 @@ help:
 	@echo "  examples-test   Verify all examples compile"
 	@echo ""
 	@echo "Utility targets:"
-	@echo "  utilities       Build all utilities to bin/utilities/"
+	@echo "  utilities       Build all utilities to bin/"
 	@echo "  utilities-clean Remove utility binaries"
-	@echo "  install         Build and install utilities to /usr/local/bin"
+	@echo "  install         Build and install utilities to /usr/local/bin (sudo)"

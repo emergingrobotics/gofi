@@ -1,0 +1,560 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/unifi-go/gofi/services"
+	"github.com/unifi-go/gofi/types"
+)
+
+// mockClient implements gofi.Client for testing operations.
+type mockClient struct {
+	users    mockUserService
+	dns      mockDNSService
+	networks mockNetworkService
+}
+
+func (m *mockClient) Connect(ctx context.Context) error    { return nil }
+func (m *mockClient) Disconnect(ctx context.Context) error { return nil }
+func (m *mockClient) IsConnected() bool                    { return true }
+func (m *mockClient) Sites() services.SiteService           { return nil }
+func (m *mockClient) Devices() services.DeviceService       { return nil }
+func (m *mockClient) Networks() services.NetworkService     { return &m.networks }
+func (m *mockClient) WLANs() services.WLANService           { return nil }
+func (m *mockClient) Firewall() services.FirewallService     { return nil }
+func (m *mockClient) Clients() services.ClientService        { return nil }
+func (m *mockClient) Users() services.UserService           { return &m.users }
+func (m *mockClient) Routing() services.RoutingService       { return nil }
+func (m *mockClient) PortForwards() services.PortForwardService { return nil }
+func (m *mockClient) PortProfiles() services.PortProfileService { return nil }
+func (m *mockClient) Settings() services.SettingService      { return nil }
+func (m *mockClient) System() services.SystemService         { return nil }
+func (m *mockClient) Events() services.EventService          { return nil }
+func (m *mockClient) DNS() services.DNSService               { return &m.dns }
+
+// mockUserService implements services.UserService.
+type mockUserService struct {
+	users []types.User
+}
+
+func (m *mockUserService) List(ctx context.Context, site string) ([]types.User, error) {
+	return m.users, nil
+}
+
+func (m *mockUserService) Get(ctx context.Context, site, id string) (*types.User, error) {
+	for i := range m.users {
+		if m.users[i].ID == id {
+			return &m.users[i], nil
+		}
+	}
+	return nil, fmt.Errorf("not found")
+}
+
+func (m *mockUserService) GetByMAC(ctx context.Context, site, mac string) (*types.User, error) {
+	for i := range m.users {
+		if strings.EqualFold(m.users[i].MAC, mac) {
+			return &m.users[i], nil
+		}
+	}
+	return nil, fmt.Errorf("not found")
+}
+
+func (m *mockUserService) Create(ctx context.Context, site string, user *types.User) (*types.User, error) {
+	user.ID = fmt.Sprintf("id_%d", len(m.users)+1)
+	m.users = append(m.users, *user)
+	return user, nil
+}
+
+func (m *mockUserService) Update(ctx context.Context, site string, user *types.User) (*types.User, error) {
+	for i := range m.users {
+		if m.users[i].ID == user.ID {
+			m.users[i] = *user
+			return user, nil
+		}
+	}
+	return nil, fmt.Errorf("not found")
+}
+
+func (m *mockUserService) Delete(ctx context.Context, site, id string) error {
+	for i := range m.users {
+		if m.users[i].ID == id {
+			m.users = append(m.users[:i], m.users[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("not found")
+}
+
+func (m *mockUserService) DeleteByMAC(ctx context.Context, site, mac string) error {
+	for i := range m.users {
+		if strings.EqualFold(m.users[i].MAC, mac) {
+			m.users = append(m.users[:i], m.users[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("not found")
+}
+
+func (m *mockUserService) SetFixedIP(ctx context.Context, site, mac, ip, networkID string) error {
+	for i := range m.users {
+		if strings.EqualFold(m.users[i].MAC, mac) {
+			m.users[i].UseFixedIP = true
+			m.users[i].FixedIP = ip
+			m.users[i].NetworkID = networkID
+			return nil
+		}
+	}
+	return fmt.Errorf("not found")
+}
+
+func (m *mockUserService) ClearFixedIP(ctx context.Context, site, mac string) error {
+	for i := range m.users {
+		if strings.EqualFold(m.users[i].MAC, mac) {
+			m.users[i].UseFixedIP = false
+			m.users[i].FixedIP = ""
+			return nil
+		}
+	}
+	return fmt.Errorf("not found")
+}
+
+func (m *mockUserService) ListGroups(ctx context.Context, site string) ([]types.UserGroup, error) {
+	return nil, nil
+}
+
+func (m *mockUserService) GetGroup(ctx context.Context, site, id string) (*types.UserGroup, error) {
+	return nil, fmt.Errorf("not found")
+}
+
+func (m *mockUserService) CreateGroup(ctx context.Context, site string, group *types.UserGroup) (*types.UserGroup, error) {
+	return group, nil
+}
+
+func (m *mockUserService) UpdateGroup(ctx context.Context, site string, group *types.UserGroup) (*types.UserGroup, error) {
+	return group, nil
+}
+
+func (m *mockUserService) DeleteGroup(ctx context.Context, site, id string) error {
+	return nil
+}
+
+// mockDNSService implements services.DNSService.
+type mockDNSService struct {
+	records []types.DNSRecord
+}
+
+func (m *mockDNSService) List(ctx context.Context, site string) ([]types.DNSRecord, error) {
+	return m.records, nil
+}
+
+func (m *mockDNSService) Get(ctx context.Context, site, id string) (*types.DNSRecord, error) {
+	for i := range m.records {
+		if m.records[i].ID == id {
+			return &m.records[i], nil
+		}
+	}
+	return nil, fmt.Errorf("not found")
+}
+
+func (m *mockDNSService) GetByName(ctx context.Context, site, name string) (*types.DNSRecord, error) {
+	for i := range m.records {
+		if m.records[i].Key == name {
+			return &m.records[i], nil
+		}
+	}
+	return nil, fmt.Errorf("not found")
+}
+
+func (m *mockDNSService) GetByIP(ctx context.Context, site, ip string) ([]types.DNSRecord, error) {
+	var result []types.DNSRecord
+	for _, r := range m.records {
+		if r.Value == ip {
+			result = append(result, r)
+		}
+	}
+	return result, nil
+}
+
+func (m *mockDNSService) Create(ctx context.Context, site string, record *types.DNSRecord) (*types.DNSRecord, error) {
+	record.ID = fmt.Sprintf("dns_%d", len(m.records)+1)
+	m.records = append(m.records, *record)
+	return record, nil
+}
+
+func (m *mockDNSService) Update(ctx context.Context, site string, record *types.DNSRecord) (*types.DNSRecord, error) {
+	for i := range m.records {
+		if m.records[i].ID == record.ID {
+			m.records[i] = *record
+			return record, nil
+		}
+	}
+	return nil, fmt.Errorf("not found")
+}
+
+func (m *mockDNSService) Delete(ctx context.Context, site, id string) error {
+	for i := range m.records {
+		if m.records[i].ID == id {
+			m.records = append(m.records[:i], m.records[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("not found")
+}
+
+func (m *mockDNSService) DeleteByName(ctx context.Context, site, name string) error {
+	for i := range m.records {
+		if m.records[i].Key == name {
+			m.records = append(m.records[:i], m.records[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("not found")
+}
+
+// mockNetworkService implements services.NetworkService.
+type mockNetworkService struct {
+	networks []types.Network
+}
+
+func (m *mockNetworkService) List(ctx context.Context, site string) ([]types.Network, error) {
+	return m.networks, nil
+}
+
+func (m *mockNetworkService) Get(ctx context.Context, site, id string) (*types.Network, error) {
+	return nil, fmt.Errorf("not found")
+}
+
+func (m *mockNetworkService) Create(ctx context.Context, site string, network *types.Network) (*types.Network, error) {
+	return network, nil
+}
+
+func (m *mockNetworkService) Update(ctx context.Context, site string, network *types.Network) (*types.Network, error) {
+	return network, nil
+}
+
+func (m *mockNetworkService) Delete(ctx context.Context, site, id string) error {
+	return nil
+}
+
+func newTestClient() *mockClient {
+	return &mockClient{
+		networks: mockNetworkService{
+			networks: []types.Network{
+				{ID: "net_lan", Name: "LAN", IPSubnet: "192.168.1.0/24"},
+				{ID: "net_iot", Name: "IoT", IPSubnet: "10.0.0.0/24"},
+			},
+		},
+	}
+}
+
+func TestDoGet_BasicExport(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:01", Name: "server1", UseFixedIP: true, FixedIP: "192.168.1.10"},
+		{ID: "u2", MAC: "aa:bb:cc:dd:ee:02", Name: "server2", UseFixedIP: true, FixedIP: "192.168.1.20"},
+	}
+
+	var buf bytes.Buffer
+	err := DoGet(context.Background(), client, "default", &buf, FormatOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, "host server1 {") {
+		t.Error("missing server1")
+	}
+	if !strings.Contains(output, "host server2 {") {
+		t.Error("missing server2")
+	}
+	if !strings.Contains(output, "aa:bb:cc:dd:ee:01") {
+		t.Error("missing MAC 01")
+	}
+	if !strings.Contains(output, "192.168.1.10") {
+		t.Error("missing IP .10")
+	}
+}
+
+func TestDoGet_NoFixedIPs(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:01", Name: "dynamic"},
+	}
+
+	var buf bytes.Buffer
+	err := DoGet(context.Background(), client, "default", &buf, FormatOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, "No fixed IP assignments found") {
+		t.Error("expected empty message")
+	}
+}
+
+func TestDoGet_HostnameFallback(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:01", Hostname: "detected-host", UseFixedIP: true, FixedIP: "192.168.1.10"},
+	}
+
+	var buf bytes.Buffer
+	err := DoGet(context.Background(), client, "default", &buf, FormatOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(buf.String(), "host detected-host {") {
+		t.Error("expected Hostname fallback")
+	}
+}
+
+func TestDoGet_MACFallback(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:01", UseFixedIP: true, FixedIP: "192.168.1.10"},
+	}
+
+	var buf bytes.Buffer
+	err := DoGet(context.Background(), client, "default", &buf, FormatOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(buf.String(), "host aa-bb-cc-dd-ee-01 {") {
+		t.Error("expected MAC-based hostname fallback")
+	}
+}
+
+func TestDoSet_CreateNew(t *testing.T) {
+	client := newTestClient()
+	entries := []HostEntry{
+		{Hostname: "server1", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.10"},
+		{Hostname: "server2", MAC: "aa:bb:cc:dd:ee:02", IP: "192.168.1.20"},
+	}
+
+	result, err := DoSet(context.Background(), client, "default", entries, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Created != 2 {
+		t.Errorf("created = %d, want 2", result.Created)
+	}
+	if result.Updated != 0 {
+		t.Errorf("updated = %d, want 0", result.Updated)
+	}
+	if result.Skipped != 0 {
+		t.Errorf("skipped = %d, want 0", result.Skipped)
+	}
+	if len(client.users.users) != 2 {
+		t.Errorf("users count = %d, want 2", len(client.users.users))
+	}
+}
+
+func TestDoSet_SkipUnchanged(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:01", Name: "server1", UseFixedIP: true, FixedIP: "192.168.1.10"},
+	}
+	entries := []HostEntry{
+		{Hostname: "server1", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.10"},
+	}
+
+	result, err := DoSet(context.Background(), client, "default", entries, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Skipped != 1 {
+		t.Errorf("skipped = %d, want 1", result.Skipped)
+	}
+}
+
+func TestDoSet_UpdateChanged(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:01", Name: "old-name", UseFixedIP: true, FixedIP: "192.168.1.99"},
+	}
+	entries := []HostEntry{
+		{Hostname: "new-name", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.10"},
+	}
+
+	result, err := DoSet(context.Background(), client, "default", entries, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Updated != 1 {
+		t.Errorf("updated = %d, want 1", result.Updated)
+	}
+	if client.users.users[0].FixedIP != "192.168.1.10" {
+		t.Errorf("fixed IP not updated: %s", client.users.users[0].FixedIP)
+	}
+	if client.users.users[0].Name != "new-name" {
+		t.Errorf("name not updated: %s", client.users.users[0].Name)
+	}
+}
+
+func TestDoSet_DryRun(t *testing.T) {
+	client := newTestClient()
+	entries := []HostEntry{
+		{Hostname: "server1", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.10"},
+	}
+
+	result, err := DoSet(context.Background(), client, "default", entries, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Created != 1 {
+		t.Errorf("created = %d, want 1", result.Created)
+	}
+	if len(client.users.users) != 0 {
+		t.Errorf("dry run should not create users, got %d", len(client.users.users))
+	}
+}
+
+func TestDoAdd_NewEntry(t *testing.T) {
+	client := newTestClient()
+	entry := &HostEntry{Hostname: "newhost", MAC: "aa:bb:cc:dd:ee:ff", IP: "192.168.1.50"}
+
+	err := DoAdd(context.Background(), client, "default", entry, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(client.users.users) != 1 {
+		t.Fatalf("expected 1 user, got %d", len(client.users.users))
+	}
+	if client.users.users[0].FixedIP != "192.168.1.50" {
+		t.Errorf("IP = %q, want %q", client.users.users[0].FixedIP, "192.168.1.50")
+	}
+	if len(client.dns.records) != 1 {
+		t.Fatalf("expected 1 DNS record, got %d", len(client.dns.records))
+	}
+}
+
+func TestDoAdd_ConflictIP(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "11:22:33:44:55:66", Name: "existing", UseFixedIP: true, FixedIP: "192.168.1.50"},
+	}
+	entry := &HostEntry{Hostname: "newhost", MAC: "aa:bb:cc:dd:ee:ff", IP: "192.168.1.50"}
+
+	err := DoAdd(context.Background(), client, "default", entry, false)
+	if err == nil {
+		t.Fatal("expected conflict error")
+	}
+	if !strings.Contains(err.Error(), "already assigned") {
+		t.Errorf("error = %q, want mention of already assigned", err.Error())
+	}
+}
+
+func TestDoAdd_ForceOverride(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "11:22:33:44:55:66", Name: "existing", UseFixedIP: true, FixedIP: "192.168.1.50"},
+	}
+	entry := &HostEntry{Hostname: "newhost", MAC: "aa:bb:cc:dd:ee:ff", IP: "192.168.1.50"}
+
+	err := DoAdd(context.Background(), client, "default", entry, true)
+	if err != nil {
+		t.Fatalf("force should skip conflicts: %v", err)
+	}
+}
+
+func TestDoDel_ByMAC(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:ff", Name: "myhost", UseFixedIP: true, FixedIP: "192.168.1.10"},
+	}
+	client.dns.records = []types.DNSRecord{
+		{ID: "d1", Key: "myhost", Value: "192.168.1.10", RecordType: "A", Enabled: true},
+	}
+
+	id := DeleteIdentifier{MAC: "aa:bb:cc:dd:ee:ff"}
+	err := DoDel(context.Background(), client, "default", id, false, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if client.users.users[0].UseFixedIP {
+		t.Error("fixed IP should be cleared")
+	}
+	if len(client.dns.records) != 0 {
+		t.Error("DNS record should be deleted")
+	}
+}
+
+func TestDoDel_ByIP(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:ff", Name: "myhost", UseFixedIP: true, FixedIP: "192.168.1.10"},
+	}
+
+	id := DeleteIdentifier{IP: "192.168.1.10"}
+	err := DoDel(context.Background(), client, "default", id, false, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDoDel_ByName(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:ff", Name: "myhost", UseFixedIP: true, FixedIP: "192.168.1.10"},
+	}
+
+	id := DeleteIdentifier{Name: "myhost"}
+	err := DoDel(context.Background(), client, "default", id, false, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDoDel_NotFound(t *testing.T) {
+	client := newTestClient()
+	id := DeleteIdentifier{MAC: "aa:bb:cc:dd:ee:ff"}
+	err := DoDel(context.Background(), client, "default", id, false, false)
+	if err == nil {
+		t.Fatal("expected not found error")
+	}
+}
+
+func TestDoDel_KeepDNS(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:ff", Name: "myhost", UseFixedIP: true, FixedIP: "192.168.1.10"},
+	}
+	client.dns.records = []types.DNSRecord{
+		{ID: "d1", Key: "myhost", Value: "192.168.1.10", RecordType: "A", Enabled: true},
+	}
+
+	id := DeleteIdentifier{MAC: "aa:bb:cc:dd:ee:ff"}
+	err := DoDel(context.Background(), client, "default", id, false, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(client.dns.records) != 1 {
+		t.Error("DNS record should be preserved with --keep-dns")
+	}
+}
+
+func TestDoSet_NetworkDetection(t *testing.T) {
+	client := newTestClient()
+	entries := []HostEntry{
+		{Hostname: "lan-host", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.50"},
+		{Hostname: "iot-host", MAC: "aa:bb:cc:dd:ee:02", IP: "10.0.0.50"},
+	}
+
+	result, err := DoSet(context.Background(), client, "default", entries, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Created != 2 {
+		t.Errorf("created = %d, want 2", result.Created)
+	}
+
+	if client.users.users[0].NetworkID != "net_lan" {
+		t.Errorf("first user network = %q, want net_lan", client.users.users[0].NetworkID)
+	}
+	if client.users.users[1].NetworkID != "net_iot" {
+		t.Errorf("second user network = %q, want net_iot", client.users.users[1].NetworkID)
+	}
+}
