@@ -125,7 +125,7 @@ func doGet(config *gofi.Config, site string) {
 	if err := client.Connect(ctx); err != nil {
 		exitError("failed to connect: " + err.Error())
 	}
-	defer client.Disconnect(ctx)
+	defer func() { _ = client.Disconnect(ctx) }()
 
 	users, err := client.Users().List(ctx, site)
 	if err != nil {
@@ -198,7 +198,7 @@ func doSet(config *gofi.Config, site string, args []string) {
 	if err := client.Connect(ctx); err != nil {
 		exitError("failed to connect: " + err.Error())
 	}
-	defer client.Disconnect(ctx)
+	defer func() { _ = client.Disconnect(ctx) }()
 
 	// Fetch existing assignments
 	users, err := client.Users().List(ctx, site)
