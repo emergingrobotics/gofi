@@ -310,6 +310,200 @@ utilities/
       DESIGN.md       # Detailed design document (generated from this spec)
 ```
 
+## gofimac Tool
+
+A command-line tool for listing connected clients on a UniFi UDM Pro, filtered by connection type (wired or WiFi), with independent OUI manufacturer lookup. Lives in `utilities/gofimac/`. Built on the gofi module.
+
+### Purpose
+
+Network administrators need to see what devices are connected and who manufactures them. The UDM provides an OUI field on client records, but it is often stale or inaccurate. `gofimac` performs its own OUI lookup using the IEEE OUI database, ensuring manufacturer identification is always current and trustworthy.
+
+### OUI Database
+
+The IEEE publishes the canonical OUI (Organizationally Unique Identifier) database at `https://standards-oui.ieee.org/oui/oui.txt`. The first 3 octets of a MAC address identify the manufacturer.
+
+**Storage location**: `$XDG_DATA_HOME/gofimac/oui.txt`, falling back to `~/.local/share/gofimac/oui.txt` if `$XDG_DATA_HOME` is not set. This follows the XDG Base Directory Specification and requires no root access.
+
+**Freshness check**: On every invocation, before performing any lookups:
+
+1. Check if the OUI file exists at the storage location.
+2. If it exists, check the file modification time. If the file is older than 30 days, re-download it.
+3. If it does not exist, download it.
+4. Download from `https://standards-oui.ieee.org/oui/oui.txt`.
+5. If the download fails and a cached file exists (even if stale), use the cached file and print a warning to stderr.
+6. If the download fails and no cached file exists, exit with an error.
+
+**Parsing**: The IEEE OUI file format has entries like:
+
+```
+AA-BB-CC   (hex)		Acme Corporation
+AABBCC     (base 16)		Acme Corporation
+				123 Main Street
+				Springfield IL 12345
+				US
+```
+
+Parse only the `(hex)` lines. Extract the 3-octet prefix (normalized to lowercase colon-separated, e.g., `aa:bb:cc`) and the manufacturer name.
+
+**Lookup**: Given a MAC address, extract the first 3 octets and look up the manufacturer. If not found, return `unknown`.
+
+### CLI Interface
+
+```
+gofimac [connection flags] --wifi
+gofimac [connection flags] --wired
+gofimac [connection flags] --all
+gofimac [connection flags] --wifi -j
+```
+
+### Mode Flags
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--wifi` | `-w` | List only WiFi-connected clients |
+| `--wired` | `-e` | List only wired (ethernet) clients |
+| `--all` | `-a` | List all connected clients (default if no mode specified) |
+
+If no mode flag is given, `--all` is assumed.
+
+### Output Flags
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--json` | `-j` | Output in JSON format instead of text |
+
+### Connection Flags
+
+Same as `gofips`:
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--host` | `-H` | `$UNIFI_UDM_IP` | UDM Pro host address |
+| `--port` | `-p` | `443` | UDM Pro port |
+| `--site` | `-S` | `default` | UniFi site name |
+| `--insecure` | `-k` | `false` | Skip TLS certificate verification |
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `UNIFI_USERNAME` | Yes | UDM authentication username |
+| `UNIFI_PASSWORD` | Yes | UDM authentication password |
+| `UNIFI_UDM_IP` | No | UDM host address (fallback if `-H` not given) |
+| `XDG_DATA_HOME` | No | Base directory for OUI data (default `~/.local/share`) |
+
+### Text Output Format
+
+Default output is one line per client, tab-separated:
+
+```
+MAC              IP              HOSTNAME        OUI-MANUFACTURER
+```
+
+Concrete example:
+
+```
+aa:bb:cc:dd:ee:01	192.168.1.10	myserver	Dell Inc.
+aa:bb:cc:dd:ee:02	192.168.1.11	printer 	Hewlett Packard
+aa:bb:cc:dd:ee:03	192.168.1.12	unknown 	unknown
+```
+
+Rules:
+- MAC addresses are lowercase, colon-separated.
+- If the client has a `Name` field set, use it as the hostname. Otherwise fall back to `Hostname`. If neither is set, use `unknown`.
+- The OUI manufacturer comes from our own OUI database lookup, never from the UDM's `OUI` field.
+- Sort output by IP address numerically (same uint32 conversion as gofips).
+- Clients without an IP address are listed at the end with IP shown as `-`.
+- Status/progress messages (OUI download progress, etc.) go to stderr.
+
+### JSON Output Format
+
+When `--json` or `-j` is specified, output a JSON array to stdout:
+
+```json
+[
+  {
+    "mac": "aa:bb:cc:dd:ee:01",
+    "ip": "192.168.1.10",
+    "hostname": "myserver",
+    "manufacturer": "Dell Inc.",
+    "is_wired": false,
+    "essid": "MyNetwork",
+    "ap_mac": "ff:ee:dd:cc:bb:aa",
+    "channel": 36,
+    "radio": "na",
+    "signal": -42,
+    "rx_bytes": 123456789,
+    "tx_bytes": 987654321,
+    "uptime": 86400,
+    "last_seen": 1708700000
+  }
+]
+```
+
+For wired clients, include switch-specific fields instead of WiFi fields:
+
+```json
+{
+  "mac": "aa:bb:cc:dd:ee:02",
+  "ip": "192.168.1.11",
+  "hostname": "printer",
+  "manufacturer": "Hewlett Packard",
+  "is_wired": true,
+  "sw_mac": "11:22:33:44:55:66",
+  "sw_port": 4,
+  "rx_bytes": 123456789,
+  "tx_bytes": 987654321,
+  "uptime": 172800,
+  "last_seen": 1708700000
+}
+```
+
+JSON fields:
+- Always present: `mac`, `ip`, `hostname`, `manufacturer`, `is_wired`, `rx_bytes`, `tx_bytes`, `uptime`, `last_seen`.
+- WiFi clients add: `essid`, `ap_mac`, `channel`, `radio`, `radio_proto`, `signal`, `noise`, `rssi`, `satisfaction`.
+- Wired clients add: `sw_mac`, `sw_port`.
+- Omit fields with zero/empty values from JSON output (`omitempty` behavior).
+
+### Behavior
+
+1. Check and update the OUI database (see Freshness check above).
+2. Parse the OUI database into a lookup map (3-octet prefix -> manufacturer name).
+3. Connect to the UDM.
+4. Fetch active clients via `client.Clients().ListActive()`.
+5. Filter by connection type based on the `IsWired` field:
+   - `--wifi`: `IsWired == false`
+   - `--wired`: `IsWired == true`
+   - `--all`: no filter
+6. For each client, look up the manufacturer from the OUI map using the first 3 octets of the MAC.
+7. Sort by IP address numerically (clients without IPs sort last).
+8. Output in the requested format (text or JSON).
+
+### Error Handling
+
+| Condition | Behavior |
+|-----------|----------|
+| Missing credentials or host | Print error, exit 1 |
+| Connection failure | Print error, exit 1 |
+| OUI download fails, no cache | Print error, exit 1 |
+| OUI download fails, stale cache exists | Print warning to stderr, continue with cached data |
+| OUI parse error | Print error, exit 1 |
+| No clients found matching filter | Print empty output (empty line in text, `[]` in JSON), exit 0 |
+
+### Project Layout
+
+```
+utilities/
+  gofimac/
+    main.go           # Entry point, flag parsing
+    oui.go            # OUI database download, parse, lookup
+    format.go         # Text and JSON output formatting
+    operations.go     # Client listing and filtering
+  docs/
+    gofimac/
+      DESIGN.md       # Detailed design document
+```
+
 ## Commands
 
 ```bash

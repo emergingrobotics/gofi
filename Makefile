@@ -4,7 +4,7 @@
 EXAMPLES := basic crud errors concurrent websocket list fixedips addfixedip delfixedip switches
 
 # All utilities
-UTILITIES := gofip gofips
+UTILITIES := gofip gofips gofimac
 
 .DEFAULT_GOAL := help
 
