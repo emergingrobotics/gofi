@@ -18,48 +18,108 @@ export UNIFI_USERNAME=admin
 export UNIFI_PASSWORD=your-password
 ```
 
-### gofip
+The `UNIFI_UDM_IP` variable is optional and provides a fallback host address when `-H` is not given.
 
-Manages fixed IP (DHCP reservation) assignments on a UDM Pro. Replaces editing `dhcpd.conf` and DNS zone files for small networks. Assignments are stored as a simple text file — one `IP MAC` pair per line — that can be version-controlled, diffed, and shared.
+### gofips
 
-**Export current assignments:**
+Manages fixed IP (DHCP reservation) assignments **with hostnames and DNS records** on a UDM Pro, using the industry-standard ISC DHCP `dhcpd.conf` host-declaration format. This is the recommended tool for bulk fixed-IP management — it supersedes `gofip` and the `fixedips` / `addfixedip` / `delfixedip` examples by adding hostname and DNS support.
 
-```bash
-gofip -H 192.168.1.1 -k --get > hosts.txt
-```
-
-If no assignments exist, the output contains commented examples showing the file format. If assignments exist, they are printed sorted by IP address:
-
-```
-# gofip fixed IP assignments
-# format: IP MAC
-192.168.1.10 aa:bb:cc:dd:ee:01
-192.168.1.11 aa:bb:cc:dd:ee:02
-192.168.1.20 11:22:33:44:55:66
-```
-
-**Import assignments from a file:**
+**Export current assignments** (dump to disk, edit, push back):
 
 ```bash
-gofip -H 192.168.1.1 -k --set hosts.txt
+gofips -H 192.168.1.1 -k --get > hosts.conf
 ```
 
-**Import from stdin:**
+Assignments are emitted sorted by IP address in ISC DHCP format, where the `host <name>` label is the DNS name:
+
+```
+# gofips fixed IP assignments
+# exported from UDM at 192.168.1.1
+
+host myserver {
+    hardware ethernet aa:bb:cc:dd:ee:01;
+    fixed-address 192.168.1.10;
+}
+
+host printer {
+    hardware ethernet aa:bb:cc:dd:ee:02;
+    fixed-address 192.168.1.11;
+}
+```
+
+**Import (bulk provision) from a file or stdin:**
 
 ```bash
-echo "192.168.1.50 aa:bb:cc:dd:ee:ff" | gofip -H 192.168.1.1 -k --set
+gofips -H 192.168.1.1 -k --set hosts.conf
+cat hosts.conf | gofips -H 192.168.1.1 -k --set
 ```
 
-Existing assignments (same MAC with the same IP) are skipped. The input file is fully validated before any changes are made to the controller. The network for each IP is auto-detected from configured subnets.
+The input is fully validated before any changes are made; unchanged entries are skipped and the network for each IP is auto-detected from configured subnets. Add `--dry-run` to preview changes without applying them.
+
+**Add or delete a single host:**
+
+```bash
+gofips -H 192.168.1.1 -k --add 'host mydev { hardware ethernet aa:bb:cc:dd:ee:ff; fixed-address 192.168.1.50; }'
+gofips -H 192.168.1.1 -k --del --name mydev   # or --mac / --ip
+```
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--get` | `-g` | Export assignments to stdout |
-| `--set` | `-s` | Import assignments from file or stdin |
+| `--get` | `-g` | Export assignments to stdout in ISC DHCP format |
+| `--set` | `-s` | Import host declarations from a file or stdin |
+| `--add` | `-a` | Add a single host from an ISC DHCP declaration |
+| `--del` | `-d` | Delete a host by `--name`, `--mac`, or `--ip` |
+| `--force` | `-f` | Skip conflict checks; force delete of the user record |
+| `--keep-dns` | `-K` | Preserve DNS records when deleting |
+| `--dry-run` | | Preview changes without applying |
 | `--host` | `-H` | UDM Pro host address (or set `UNIFI_UDM_IP`) |
 | `--port` | `-p` | Port (default: 443) |
 | `--site` | `-S` | Site name (default: "default") |
 | `--insecure` | `-k` | Skip TLS certificate verification |
+
+See [utilities/gofips/README.md](./utilities/gofips/README.md) and [utilities/docs/gofips/DESIGN.md](./utilities/docs/gofips/DESIGN.md) for details.
+
+### gofimac
+
+Lists connected clients (wired, WiFi, or all) with manufacturer identification looked up independently from the IEEE OUI database rather than relying on the UDM's built-in fingerprinting.
+
+```bash
+gofimac -H 192.168.1.1 -k          # all connected clients (default)
+gofimac -H 192.168.1.1 -k --wifi   # WiFi clients only
+gofimac -H 192.168.1.1 -k --wired  # wired clients only
+gofimac -H 192.168.1.1 -k --json   # JSON output
+```
+
+Text output is tab-separated (MAC, IP, hostname, manufacturer), sorted by IP:
+
+```
+aa:bb:cc:dd:ee:01	192.168.1.10	myserver	Dell Inc.
+aa:bb:cc:dd:ee:02	192.168.1.11	printer	Hewlett Packard
+```
+
+The IEEE OUI database is downloaded and cached under `$XDG_DATA_HOME/gofimac/` (default `~/.local/share/gofimac/`) and refreshed automatically when older than 30 days. If a refresh fails, a cached copy is used with a warning.
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--wifi` | `-w` | List only WiFi clients |
+| `--wired` | `-e` | List only wired clients |
+| `--all` | `-a` | List all clients (default) |
+| `--json` | `-j` | Output JSON instead of text |
+| `--host` | `-H` | UDM Pro host address (or set `UNIFI_UDM_IP`) |
+| `--port` | `-p` | Port (default: 443) |
+| `--site` | `-S` | Site name (default: "default") |
+| `--insecure` | `-k` | Skip TLS certificate verification |
+
+See [utilities/gofimac/README.md](./utilities/gofimac/README.md) and [utilities/docs/gofimac/DESIGN.md](./utilities/docs/gofimac/DESIGN.md) for details.
+
+### gofip (legacy)
+
+The original fixed-IP tool. Stores assignments as a plain text file — one `IP MAC` pair per line, with no hostname or DNS support. Kept as a reference implementation; **use `gofips` for new work.**
+
+```bash
+gofip -H 192.168.1.1 -k --get > hosts.txt   # export "IP MAC" pairs
+gofip -H 192.168.1.1 -k --set hosts.txt      # import
+```
 
 See [utilities/docs/gofip/DESIGN.md](./utilities/docs/gofip/DESIGN.md) for the full design.
 
@@ -168,9 +228,9 @@ All examples require the same environment variables as the utilities above.
 | `concurrent` | Batch/concurrent operations with `gofi.BatchGet` |
 | `websocket` | Real-time WebSocket event streaming |
 | `errors` | Error handling patterns |
-| `fixedips` | List all fixed IP assignments |
-| `addfixedip` | Assign a fixed IP to a device by MAC address |
-| `delfixedip` | Remove a fixed IP assignment |
+| `fixedips` | List all fixed IP assignments (reference; superseded by the `gofips` utility) |
+| `addfixedip` | Assign a fixed IP to a device by MAC address (reference; superseded by `gofips`) |
+| `delfixedip` | Remove a fixed IP assignment (reference; superseded by `gofips`) |
 | `switches` | Switch and PoE management |
 
 ### API Coverage
@@ -415,7 +475,7 @@ make coverage      # Generate coverage report
 make lint          # Run linter
 make build         # Build the module
 make examples      # Build all examples to bin/examples/
-make utilities     # Build all utilities to bin/utilities/
+make utilities     # Build all utilities (gofip, gofips, gofimac) to bin/
 sudo make install  # Install utilities to /usr/local/bin
 make all           # Run lint, test, and build
 ```
