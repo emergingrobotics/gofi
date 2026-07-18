@@ -1,4 +1,4 @@
-.PHONY: all build test lint clean coverage examples examples-clean examples-test utilities utilities-clean install help
+.PHONY: all build test lint clean coverage examples examples-clean examples-test utilities utilities-clean install mac-ping help
 
 # All examples
 EXAMPLES := basic crud errors concurrent websocket list fixedips addfixedip delfixedip switches
@@ -74,6 +74,21 @@ install: utilities
 	done
 	@echo "All utilities installed."
 
+# === Network probes ===
+
+# ARP-ping a MAC on the local segment. Requires Habets 'arping' (apt install arping);
+# only that variant can target a MAC address rather than an IP. Needs root, so it
+# invokes sudo. The interface is auto-detected from the default route unless IFACE is set.
+# Usage: make mac-ping MAC=aa:bb:cc:dd:ee:ff [IFACE=eth0]
+mac-ping:
+	@command -v arping >/dev/null 2>&1 || { echo "arping not found (try: sudo apt install arping)"; exit 1; }
+	@test -n "$(MAC)" || { echo "Usage: make mac-ping MAC=<mac-address> [IFACE=<interface>]"; exit 1; }
+	@iface="$(IFACE)"; \
+	if [ -z "$$iface" ]; then iface=$$(ip route show default 2>/dev/null | awk '{print $$5; exit}'); fi; \
+	if [ -z "$$iface" ]; then echo "Could not detect a default interface; pass IFACE=<interface>"; exit 1; fi; \
+	echo "arping $(MAC) on $$iface..."; \
+	sudo arping -c 3 -i "$$iface" "$(MAC)"
+
 # Help target
 help:
 	@echo "Usage: make [target]"
@@ -95,3 +110,6 @@ help:
 	@echo "  utilities       Build all utilities to bin/"
 	@echo "  utilities-clean Remove utility binaries"
 	@echo "  install         Build and install utilities to /usr/local/bin (sudo)"
+	@echo ""
+	@echo "Network probes:"
+	@echo "  mac-ping        ARP-ping a MAC on the local segment (MAC=<mac> [IFACE=<if>])"

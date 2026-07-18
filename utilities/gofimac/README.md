@@ -49,6 +49,25 @@ gofimac -H 192.168.1.1 -k --gone=30d     # departed within the last 30 days
 gofimac -H 192.168.1.1 -k --since 7d     # everything seen in the last 7 days, marked present/gone
 ```
 
+### Probe a single MAC
+
+Check whether one device is on the network right now. Exit code is `0` if present,
+`1` if gone or never seen — so it works like `ping` in scripts. Unlike ARP-based
+tools, this asks the UDM, so it works across VLANs/subnets.
+
+```bash
+gofimac -H 192.168.1.1 -k --mac aa:bb:cc:dd:ee:ff   # or -m
+```
+
+```
+MAC                IP            HOSTNAME  OUI-MANUFACTURER              AGE  LAST-SEEN  STATUS
+9c:69:d3:00:7c:5e  192.168.4.30  bs        ASIX Electronics Corporation  6mo  now        present
+```
+
+A departed device still reports its last-known record with `STATUS gone` and a
+non-zero exit. For a local-segment ARP probe instead (same L2 only, needs root),
+use the `make mac-ping MAC=<mac>` target at the repo root.
+
 ### Sorting
 
 ```bash
@@ -108,13 +127,14 @@ The database is refreshed automatically if older than 30 days. If a download fai
 | `--since` | | Show devices seen within a window (present + gone), e.g. `7d`, `24h`, `3mo` |
 | `--gone` | | Show only departed devices; optional window (`--gone=30d`), default `7d` |
 | `--sort` | | Sort order: `first-seen` (default), `last-seen`, or `ip` |
+| `--mac` | `-m` | Probe one MAC; exit 0 if present, 1 if gone/not found |
 | `--json` | `-j` | Output in JSON format |
 | `--host` | `-H` | UDM Pro host address |
 | `--port` | `-p` | UDM Pro port (default 443) |
 | `--site` | `-S` | UniFi site name (default "default") |
 | `--insecure` | `-k` | Skip TLS certificate verification |
 
-`--since` and `--gone` are mutually exclusive. Duration values accept `s`, `m`, `h`,
+`--since`, `--gone`, and `--mac` are mutually exclusive. Duration values accept `s`, `m`, `h`,
 `d`, `w`, and `mo` units and may be compound (e.g. `1w2d`). Because `--gone` takes an
 optional value, its window must be attached with `=` (`--gone=30d`, not `--gone 30d`).
 

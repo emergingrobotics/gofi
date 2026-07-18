@@ -363,6 +363,28 @@ func TestBuildHistoryEntries_PrefersActiveRecordForPresent(t *testing.T) {
 	}
 }
 
+func TestSelectEntryByMAC(t *testing.T) {
+	entries := []ClientEntry{
+		{MAC: "aa:bb:cc:00:00:01", Hostname: "one", Status: statusPresent},
+		{MAC: "aa:bb:cc:00:00:02", Hostname: "two", Status: statusGone},
+	}
+
+	found := selectEntryByMAC(entries, "aa:bb:cc:00:00:02")
+	if found == nil || found.Hostname != "two" {
+		t.Fatalf("expected to find 'two', got %+v", found)
+	}
+
+	// Case-insensitive match.
+	upper := selectEntryByMAC(entries, "AA:BB:CC:00:00:01")
+	if upper == nil || upper.Hostname != "one" {
+		t.Fatalf("expected case-insensitive match for 'one', got %+v", upper)
+	}
+
+	if selectEntryByMAC(entries, "ff:ff:ff:ff:ff:ff") != nil {
+		t.Error("expected nil for unknown MAC")
+	}
+}
+
 // listClientsFromSlice is a test helper that processes a slice of clients
 // without requiring a UDM connection.
 func listClientsFromSlice(clients []types.Client, filter FilterMode, ouiDatabase *OUIDatabase) ([]ClientEntry, error) {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
+	"net"
 	"os"
 	"time"
 
@@ -53,7 +55,9 @@ func main() {
 		jsonOut  = flag.Bool("json", false, "Output in JSON format")
 		since    = flag.String("since", "", "Show devices seen within this window (present + gone), e.g. 7d, 24h, 3mo")
 		sortKey  = flag.String("sort", "first-seen", "Sort order: first-seen, last-seen, or ip")
+		macProbe = flag.String("mac", "", "Probe a single MAC: report present/gone; exit 0 if present, 1 otherwise")
 	)
+	flag.StringVar(macProbe, "m", "", "Probe a single MAC (shorthand)")
 
 	var gone optionalDuration
 	flag.Var(&gone, "gone", "Show only departed devices, optionally within a window (e.g. --gone=30d, default 7d)")
@@ -78,6 +82,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  --since string\tShow devices seen within window (present + gone), e.g. 7d, 24h, 3mo\n")
 		fmt.Fprintf(os.Stderr, "  --gone[=string]\tShow only departed devices, optional window (default %s)\n", defaultGoneWindow)
 		fmt.Fprintf(os.Stderr, "  --sort string\t\tSort order: first-seen (default), last-seen, ip\n\n")
+		fmt.Fprintf(os.Stderr, "Probe:\n")
+		fmt.Fprintf(os.Stderr, "  -m, --mac string\tProbe one MAC; exit 0 if present, 1 if gone/not found\n\n")
 		fmt.Fprintf(os.Stderr, "Output:\n")
 		fmt.Fprintf(os.Stderr, "  -j, --json\t\tOutput in JSON format\n\n")
 		fmt.Fprintf(os.Stderr, "Connection:\n")
@@ -105,6 +111,19 @@ func main() {
 	}
 	if *since != "" && gone.set {
 		exitError("--since and --gone are mutually exclusive")
+	}
+
+	// --mac probes a single device and is incompatible with the listing modes.
+	var probeMAC string
+	if *macProbe != "" {
+		if *since != "" || gone.set {
+			exitError("--mac cannot be combined with --since or --gone")
+		}
+		parsed, parseErr := net.ParseMAC(*macProbe)
+		if parseErr != nil {
+			exitError(fmt.Sprintf("invalid MAC %q: %v", *macProbe, parseErr))
+		}
+		probeMAC = parsed.String()
 	}
 
 	sortMode, err := parseSortMode(*sortKey)
@@ -185,11 +204,25 @@ func main() {
 		}
 	}()
 
+	now := time.Now().Unix()
+
+	if probeMAC != "" {
+		fmt.Fprintf(os.Stderr, "Probing %s...\n", probeMAC)
+		entry, probeErr := FindClientByMAC(ctx, apiClient, *site, probeMAC, ouiDatabase)
+		if probeErr != nil {
+			exitError("failed to probe MAC: " + probeErr.Error())
+		}
+		code, writeErr := reportProbe(os.Stdout, os.Stderr, entry, probeMAC, *jsonOut, now)
+		if writeErr != nil {
+			exitError("failed to write output: " + writeErr.Error())
+		}
+		os.Exit(code)
+	}
+
 	if historyMode && filter != FilterAll {
 		fmt.Fprintf(os.Stderr, "Warning: link-type filtering may be unreliable for departed devices\n")
 	}
 
-	now := time.Now().Unix()
 	var entries []ClientEntry
 	if historyMode {
 		fmt.Fprintf(os.Stderr, "Fetching client history...\n")
@@ -211,6 +244,35 @@ func main() {
 			exitError("failed to write output: " + err.Error())
 		}
 	}
+}
+
+// reportProbe writes the outcome of a single-MAC probe and returns the process
+// exit code: 0 when the device is present, 1 when it is gone or was not found.
+// Device output goes to out; the not-found status message goes to errOut.
+func reportProbe(out, errOut io.Writer, entry *ClientEntry, mac string, jsonOut bool, now int64) (int, error) {
+	if entry == nil {
+		fmt.Fprintf(errOut, "MAC %s not found\n", mac)
+		if jsonOut {
+			return 1, FormatJSON(out, []ClientEntry{})
+		}
+		return 1, nil
+	}
+
+	entries := []ClientEntry{*entry}
+	var writeErr error
+	if jsonOut {
+		writeErr = FormatJSON(out, entries)
+	} else {
+		writeErr = FormatText(out, entries, true, now)
+	}
+	if writeErr != nil {
+		return 1, writeErr
+	}
+
+	if entry.Status == statusPresent {
+		return 0, nil
+	}
+	return 1, nil
 }
 
 func exitError(message string) {

@@ -36,6 +36,10 @@ const (
 	statusGone    = "gone"
 )
 
+// macProbeWindowHours bounds how far back a --mac probe searches history when the
+// device is not currently active, so it can still report a last-known "gone" state.
+const macProbeWindowHours = 8760 // 1 year
+
 // parseSortMode maps a --sort flag value to a SortMode.
 func parseSortMode(value string) (SortMode, error) {
 	switch value {
@@ -161,6 +165,36 @@ func buildHistoryEntries(activeClients, allClients []types.Client, filter Filter
 
 	sortClientEntries(entries, sortMode)
 	return entries
+}
+
+// FindClientByMAC queries the UDM for a single MAC and returns its presence-marked
+// entry, or nil if the MAC has not been seen within the probe history window. Present
+// devices are reported from their live record; departed devices from their last-known
+// historical record.
+func FindClientByMAC(ctx context.Context, client gofi.Client, site, targetMAC string, ouiDatabase *OUIDatabase) (*ClientEntry, error) {
+	activeClients, err := client.Clients().ListActive(ctx, site)
+	if err != nil {
+		return nil, err
+	}
+	allClients, err := client.Clients().ListAll(ctx, site, services.WithinHours(macProbeWindowHours))
+	if err != nil {
+		return nil, err
+	}
+
+	entries := buildHistoryEntries(activeClients, allClients, FilterAll, SortFirstSeen, false, ouiDatabase)
+	return selectEntryByMAC(entries, targetMAC), nil
+}
+
+// selectEntryByMAC returns the entry whose MAC matches targetMAC (case-insensitive),
+// or nil if none match. Kept separate so it can be tested without a UDM.
+func selectEntryByMAC(entries []ClientEntry, targetMAC string) *ClientEntry {
+	target := strings.ToLower(targetMAC)
+	for index := range entries {
+		if entries[index].MAC == target {
+			return &entries[index]
+		}
+	}
+	return nil
 }
 
 func matchesFilter(client types.Client, filter FilterMode) bool {
