@@ -14,7 +14,7 @@ func TestFormatText_BasicOutput(t *testing.T) {
 	}
 
 	var buffer bytes.Buffer
-	if err := FormatText(&buffer, entries); err != nil {
+	if err := FormatText(&buffer, entries, false, 0); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -41,13 +41,95 @@ func TestFormatText_BasicOutput(t *testing.T) {
 	}
 }
 
+func TestFormatText_HeaderHasTimeColumns(t *testing.T) {
+	entries := []ClientEntry{
+		{MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.10", Hostname: "h", Manufacturer: "m"},
+	}
+	var buffer bytes.Buffer
+	if err := FormatText(&buffer, entries, false, 0); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	header := strings.Split(buffer.String(), "\n")[0]
+	for _, column := range []string{"AGE", "LAST-SEEN"} {
+		if !strings.Contains(header, column) {
+			t.Errorf("expected %s column in header: %s", column, header)
+		}
+	}
+	if strings.Contains(header, "STATUS") {
+		t.Errorf("STATUS column should not appear in active view: %s", header)
+	}
+}
+
+func TestFormatText_HistoryShowsStatusColumn(t *testing.T) {
+	entries := []ClientEntry{
+		{MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.10", Hostname: "h", Manufacturer: "m", Status: "gone"},
+	}
+	var buffer bytes.Buffer
+	if err := FormatText(&buffer, entries, true, 0); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(buffer.String()), "\n")
+	if !strings.Contains(lines[0], "STATUS") {
+		t.Errorf("expected STATUS column in header: %s", lines[0])
+	}
+	if !strings.HasSuffix(lines[1], "gone") {
+		t.Errorf("expected data line to end with status: %s", lines[1])
+	}
+}
+
+func TestFormatRelativeTime(t *testing.T) {
+	const now int64 = 1_000_000_000
+	cases := []struct {
+		name     string
+		epoch    int64
+		expected string
+	}{
+		{"zero", 0, "-"},
+		{"future clamps to now", now + 500, "now"},
+		{"seconds", now - 30, "now"},
+		{"just under a minute", now - 59, "now"},
+		{"one minute", now - 60, "1m"},
+		{"minutes", now - 5*60, "5m"},
+		{"just under an hour", now - 3599, "59m"},
+		{"one hour", now - 3600, "1h"},
+		{"hours", now - 5*3600, "5h"},
+		{"one day", now - 86400, "1d"},
+		{"days", now - 5*86400, "5d"},
+		{"one month", now - 30*86400, "1mo"},
+		{"months", now - 90*86400, "3mo"},
+		{"one year", now - 365*86400, "1y"},
+	}
+	for _, testCase := range cases {
+		result := formatRelativeTime(testCase.epoch, now)
+		if result != testCase.expected {
+			t.Errorf("%s: formatRelativeTime(%d, %d) = %q, want %q", testCase.name, testCase.epoch, now, result, testCase.expected)
+		}
+	}
+}
+
+func TestFormatJSON_HistoryFieldsAlwaysPresent(t *testing.T) {
+	entries := []ClientEntry{
+		{MAC: "aa:bb:cc:dd:ee:01", Hostname: "h", Manufacturer: "m", Status: "present"},
+	}
+	var buffer bytes.Buffer
+	if err := FormatJSON(&buffer, entries); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	output := buffer.String()
+	for _, field := range []string{"first_seen", "status"} {
+		if !strings.Contains(output, "\""+field+"\"") {
+			t.Errorf("expected field %q in JSON output: %s", field, output)
+		}
+	}
+}
+
 func TestFormatText_NoIPShowsDash(t *testing.T) {
 	entries := []ClientEntry{
 		{MAC: "aa:bb:cc:dd:ee:01", Hostname: "no-ip-host", Manufacturer: "unknown"},
 	}
 
 	var buffer bytes.Buffer
-	if err := FormatText(&buffer, entries); err != nil {
+	if err := FormatText(&buffer, entries, false, 0); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -62,7 +144,7 @@ func TestFormatText_NoIPShowsDash(t *testing.T) {
 
 func TestFormatText_Empty(t *testing.T) {
 	var buffer bytes.Buffer
-	if err := FormatText(&buffer, nil); err != nil {
+	if err := FormatText(&buffer, nil, false, 0); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -116,8 +198,8 @@ func TestFormatJSON_WiredFields(t *testing.T) {
 			Hostname:     "switch-host",
 			Manufacturer: "Dell Inc.",
 			IsWired:      true,
-			SwitchMAC:        "11:22:33:44:55:66",
-			SwitchPort:       4,
+			SwitchMAC:    "11:22:33:44:55:66",
+			SwitchPort:   4,
 		},
 	}
 

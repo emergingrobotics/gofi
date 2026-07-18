@@ -6,6 +6,8 @@ Command-line tool for listing connected clients on a UniFi UDM Pro with independ
 
 `gofimac` fetches active clients from a UDM Pro and displays their MAC address, IP, hostname, and manufacturer. Manufacturer identification uses the IEEE OUI database, not the UDM's built-in fingerprinting.
 
+It also surfaces device history: how long each device has been known (`first_seen`), how recently it was seen (`last_seen`), and — via `--since`/`--gone` — which devices have recently left the network. Output is sorted newest-first by default so new arrivals appear at the top.
+
 ## Build
 
 ```bash
@@ -34,20 +36,50 @@ gofimac -H 192.168.1.1 -k -w
 gofimac -H 192.168.1.1 -k -e
 ```
 
+### Recently departed devices
+
+```bash
+gofimac -H 192.168.1.1 -k --gone         # departed within the default 7-day window
+gofimac -H 192.168.1.1 -k --gone=30d     # departed within the last 30 days
+```
+
+### Devices seen in a window (present and gone)
+
+```bash
+gofimac -H 192.168.1.1 -k --since 7d     # everything seen in the last 7 days, marked present/gone
+```
+
+### Sorting
+
+```bash
+gofimac -H 192.168.1.1 -k --sort ip          # numeric IP order (the pre-history default)
+gofimac -H 192.168.1.1 -k --sort last-seen   # most recently seen first
+```
+
+Default sort is `first-seen` descending (newest devices on top).
+
 ### JSON output
 
 ```bash
 gofimac -H 192.168.1.1 -k -j
 gofimac -H 192.168.1.1 -k -w -j
+gofimac -H 192.168.1.1 -k --gone=30d -j
 ```
 
 ### Text output format
 
+Active view adds `AGE` (relative `first_seen`) and `LAST-SEEN` columns:
+
 ```
-aa:bb:cc:dd:ee:01	192.168.1.10	myserver	Dell Inc.
-aa:bb:cc:dd:ee:02	192.168.1.11	printer	Hewlett Packard
-aa:bb:cc:dd:ee:03	-	unknown	unknown
+MAC                 IP             HOSTNAME   OUI-MANUFACTURER   AGE   LAST-SEEN
+aa:bb:cc:dd:ee:01   192.168.1.10   myserver   Dell Inc.          2h    now
+aa:bb:cc:dd:ee:02   192.168.1.11   printer    Hewlett Packard    5d    now
+aa:bb:cc:dd:ee:03   -              unknown    unknown            3mo   now
 ```
+
+`--since`/`--gone` add a `STATUS` column (`present` or `gone`). Departed devices are
+sourced from the UDM's historical record, so their IP and link fields may be blank
+or stale.
 
 ## OUI Database
 
@@ -73,11 +105,18 @@ The database is refreshed automatically if older than 30 days. If a download fai
 | `--wifi` | `-w` | List only WiFi clients |
 | `--wired` | `-e` | List only wired clients |
 | `--all` | `-a` | List all clients (default) |
+| `--since` | | Show devices seen within a window (present + gone), e.g. `7d`, `24h`, `3mo` |
+| `--gone` | | Show only departed devices; optional window (`--gone=30d`), default `7d` |
+| `--sort` | | Sort order: `first-seen` (default), `last-seen`, or `ip` |
 | `--json` | `-j` | Output in JSON format |
 | `--host` | `-H` | UDM Pro host address |
 | `--port` | `-p` | UDM Pro port (default 443) |
 | `--site` | `-S` | UniFi site name (default "default") |
 | `--insecure` | `-k` | Skip TLS certificate verification |
+
+`--since` and `--gone` are mutually exclusive. Duration values accept `s`, `m`, `h`,
+`d`, `w`, and `mo` units and may be compound (e.g. `1w2d`). Because `--gone` takes an
+optional value, its window must be attached with `=` (`--gone=30d`, not `--gone 30d`).
 
 ## Testing
 
@@ -93,6 +132,7 @@ See [docs/gofimac/DESIGN.md](../docs/gofimac/DESIGN.md) for the detailed design 
 gofimac/
   main.go           # Entry point, flag parsing
   oui.go            # OUI database download, parse, lookup
-  operations.go     # Client listing, filtering, sorting
-  format.go         # Text and JSON output
+  operations.go     # Client listing, filtering, sorting, presence
+  duration.go       # Compound duration parser (s/m/h/d/w/mo)
+  format.go         # Text and JSON output, relative-time rendering
 ```
