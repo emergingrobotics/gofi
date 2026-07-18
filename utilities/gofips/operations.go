@@ -48,8 +48,9 @@ func DoGet(ctx context.Context, client gofi.Client, site string, writer io.Write
 
 		hostname := resolveHostname(user)
 
-		// Warn if DNS record hostname differs from user hostname
-		if dnsHostname, ok := ipToDNSHostname[user.FixedIP]; ok && dnsHostname != hostname {
+		// Warn if DNS record hostname differs from user hostname. DNS keys are
+		// FQDNs (host.domain), so compare on the first label, not the full key.
+		if dnsHostname, ok := ipToDNSHostname[user.FixedIP]; ok && !dnsHostnameMatches(dnsHostname, hostname) {
 			fmt.Fprintf(os.Stderr, "  warning: %s has DNS hostname %q but user hostname %q\n", user.FixedIP, dnsHostname, hostname)
 		}
 
@@ -83,7 +84,7 @@ func displayName(user *types.User) string {
 	return user.MAC
 }
 
-func DoSet(ctx context.Context, client gofi.Client, site string, entries []HostEntry, dryRun bool) (*SetResult, error) {
+func DoSet(ctx context.Context, client gofi.Client, site string, entries []HostEntry, dryRun, force bool) (*SetResult, error) {
 	result := &SetResult{}
 
 	users, err := client.Users().List(ctx, site)
@@ -106,19 +107,28 @@ func DoSet(ctx context.Context, client gofi.Client, site string, entries []HostE
 		macAddress := strings.ToLower(entry.MAC)
 
 		if existingUser, ok := existingByMAC[macAddress]; ok {
-			if existingUser.UseFixedIP && existingUser.FixedIP == entry.IP && (existingUser.Name == entry.Hostname || existingUser.Hostname == entry.Hostname) {
-				fmt.Fprintf(os.Stderr, "  skip: %s %s %s (unchanged)\n", entry.Hostname, entry.IP, macAddress)
+			unchanged := existingUser.UseFixedIP && existingUser.FixedIP == entry.IP &&
+				(existingUser.Name == entry.Hostname || existingUser.Hostname == entry.Hostname)
+
+			if unchanged && !force {
+				fmt.Fprintf(os.Stderr, "  skip: %s %s %s (user record unchanged)\n", entry.Hostname, entry.IP, macAddress)
+				if err := ensureDNSRecord(ctx, client, site, entry.Hostname, domainForIP(networks, entry.IP), entry.IP, dryRun); err != nil {
+					fmt.Fprintf(os.Stderr, "  warning: %s: DNS record failed: %v\n", entry.Hostname, err)
+				}
 				result.Skipped++
 				continue
 			}
 
 			if dryRun {
 				fmt.Fprintf(os.Stderr, "  would update: %s %s %s\n", entry.Hostname, entry.IP, macAddress)
+				if err := ensureDNSRecord(ctx, client, site, entry.Hostname, domainForIP(networks, entry.IP), entry.IP, true); err != nil {
+					fmt.Fprintf(os.Stderr, "  warning: %s: DNS record failed: %v\n", entry.Hostname, err)
+				}
 				result.Updated++
 				continue
 			}
 
-			networkID, err := detectNetwork(networks, entry.IP)
+			network, err := detectNetwork(networks, entry.IP)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "  error: %s %s: %v\n", entry.IP, macAddress, err)
 				result.Errors++
@@ -128,14 +138,14 @@ func DoSet(ctx context.Context, client gofi.Client, site string, entries []HostE
 			existingUser.Name = entry.Hostname
 			existingUser.UseFixedIP = true
 			existingUser.FixedIP = entry.IP
-			existingUser.NetworkID = networkID
+			existingUser.NetworkID = network.ID
 			if _, err := client.Users().Update(ctx, site, existingUser); err != nil {
 				fmt.Fprintf(os.Stderr, "  error: %s %s: failed to update user: %v\n", entry.IP, macAddress, err)
 				result.Errors++
 				continue
 			}
 
-			if err := ensureDNSRecord(ctx, client, site, entry.Hostname, entry.IP); err != nil {
+			if err := ensureDNSRecord(ctx, client, site, entry.Hostname, network.DomainName, entry.IP, false); err != nil {
 				fmt.Fprintf(os.Stderr, "  warning: %s: DNS record failed: %v\n", entry.Hostname, err)
 			}
 
@@ -146,11 +156,14 @@ func DoSet(ctx context.Context, client gofi.Client, site string, entries []HostE
 
 		if dryRun {
 			fmt.Fprintf(os.Stderr, "  would create: %s %s %s\n", entry.Hostname, entry.IP, macAddress)
+			if err := ensureDNSRecord(ctx, client, site, entry.Hostname, domainForIP(networks, entry.IP), entry.IP, true); err != nil {
+				fmt.Fprintf(os.Stderr, "  warning: %s: DNS record failed: %v\n", entry.Hostname, err)
+			}
 			result.Created++
 			continue
 		}
 
-		networkID, err := detectNetwork(networks, entry.IP)
+		network, err := detectNetwork(networks, entry.IP)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "  error: %s %s: %v\n", entry.IP, macAddress, err)
 			result.Errors++
@@ -162,7 +175,7 @@ func DoSet(ctx context.Context, client gofi.Client, site string, entries []HostE
 			existingUser.Name = entry.Hostname
 			existingUser.UseFixedIP = true
 			existingUser.FixedIP = entry.IP
-			existingUser.NetworkID = networkID
+			existingUser.NetworkID = network.ID
 			if _, err := client.Users().Update(ctx, site, existingUser); err != nil {
 				fmt.Fprintf(os.Stderr, "  error: %s %s: failed to update: %v\n", entry.IP, macAddress, err)
 				result.Errors++
@@ -176,7 +189,7 @@ func DoSet(ctx context.Context, client gofi.Client, site string, entries []HostE
 				Name:       entry.Hostname,
 				UseFixedIP: true,
 				FixedIP:    entry.IP,
-				NetworkID:  networkID,
+				NetworkID:  network.ID,
 			}
 			if _, err := client.Users().Create(ctx, site, newUser); err != nil {
 				fmt.Fprintf(os.Stderr, "  error: %s %s: failed to create: %v\n", entry.IP, macAddress, err)
@@ -187,7 +200,7 @@ func DoSet(ctx context.Context, client gofi.Client, site string, entries []HostE
 			result.Created++
 		}
 
-		if err := ensureDNSRecord(ctx, client, site, entry.Hostname, entry.IP); err != nil {
+		if err := ensureDNSRecord(ctx, client, site, entry.Hostname, network.DomainName, entry.IP, false); err != nil {
 			fmt.Fprintf(os.Stderr, "  warning: %s: DNS record failed: %v\n", entry.Hostname, err)
 		}
 	}
@@ -207,7 +220,7 @@ func DoAdd(ctx context.Context, client gofi.Client, site string, entry *HostEntr
 		return fmt.Errorf("failed to list networks: %w", err)
 	}
 
-	networkID, err := detectNetwork(networks, entry.IP)
+	network, err := detectNetwork(networks, entry.IP)
 	if err != nil {
 		return err
 	}
@@ -219,7 +232,7 @@ func DoAdd(ctx context.Context, client gofi.Client, site string, entry *HostEntr
 		existingUser.Name = entry.Hostname
 		existingUser.UseFixedIP = true
 		existingUser.FixedIP = entry.IP
-		existingUser.NetworkID = networkID
+		existingUser.NetworkID = network.ID
 		if _, err := client.Users().Update(ctx, site, existingUser); err != nil {
 			return fmt.Errorf("failed to update user: %w", err)
 		}
@@ -229,14 +242,14 @@ func DoAdd(ctx context.Context, client gofi.Client, site string, entry *HostEntr
 			Name:       entry.Hostname,
 			UseFixedIP: true,
 			FixedIP:    entry.IP,
-			NetworkID:  networkID,
+			NetworkID:  network.ID,
 		}
 		if _, err := client.Users().Create(ctx, site, newUser); err != nil {
 			return fmt.Errorf("failed to create user: %w", err)
 		}
 	}
 
-	if err := ensureDNSRecord(ctx, client, site, entry.Hostname, entry.IP); err != nil {
+	if err := ensureDNSRecord(ctx, client, site, entry.Hostname, network.DomainName, entry.IP, false); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: DNS record failed: %v\n", err)
 		fmt.Fprintf(os.Stderr, "The fixed IP assignment was created, but DNS must be configured manually.\n")
 	}
@@ -300,9 +313,17 @@ func checkAddConflicts(ctx context.Context, client gofi.Client, site string, ent
 		}
 	}
 
-	existingDNS, _ := client.DNS().GetByName(ctx, site, entry.Hostname)
+	networks, err := client.Networks().List(ctx, site)
+	if err != nil {
+		return fmt.Errorf("failed to list networks: %w", err)
+	}
+	dnsKey := entry.Hostname
+	if domain := domainForIP(networks, entry.IP); domain != "" {
+		dnsKey = entry.Hostname + "." + domain
+	}
+	existingDNS, _ := client.DNS().GetByName(ctx, site, dnsKey)
 	if existingDNS != nil && existingDNS.Value != entry.IP {
-		return fmt.Errorf("DNS record %s already points to %s (not %s)\nUse --force to override", entry.Hostname, existingDNS.Value, entry.IP)
+		return fmt.Errorf("DNS record %s already points to %s (not %s)\nUse --force to override", dnsKey, existingDNS.Value, entry.IP)
 	}
 
 	return nil
@@ -362,21 +383,52 @@ func findUserByIdentifier(ctx context.Context, client gofi.Client, site string, 
 	return nil, fmt.Errorf("no identifier specified (use --name, --mac, or --ip)")
 }
 
-func ensureDNSRecord(ctx context.Context, client gofi.Client, site, hostname, ipAddress string) error {
-	existing, _ := client.DNS().GetByName(ctx, site, hostname)
+// ensureDNSRecord makes the UDM hold a single A record keyed on the FQDN
+// (hostname + "." + domain) for the given IP. When domain is empty it falls
+// back to a bare-hostname key. Any pre-existing bare-hostname record for this
+// host is deleted so the FQDN record replaces it rather than duplicating it.
+func ensureDNSRecord(ctx context.Context, client gofi.Client, site, hostname, domain, ipAddress string, dryRun bool) error {
+	fqdn := hostname
+	if domain != "" {
+		fqdn = hostname + "." + domain
+	}
+
+	if fqdn != hostname {
+		if stale, _ := client.DNS().GetByName(ctx, site, hostname); stale != nil && stale.Key == hostname {
+			if dryRun {
+				fmt.Fprintf(os.Stderr, "    would replace bare DNS record: %s -> %s\n", stale.Key, stale.Value)
+			} else {
+				if err := client.DNS().Delete(ctx, site, stale.ID); err != nil {
+					return fmt.Errorf("failed to delete stale DNS record %s: %w", stale.Key, err)
+				}
+			}
+		}
+	}
+
+	existing, _ := client.DNS().GetByName(ctx, site, fqdn)
 	if existing != nil {
 		if existing.Value == ipAddress {
+			return nil
+		}
+		if dryRun {
+			fmt.Fprintf(os.Stderr, "    would update DNS record: %s -> %s\n", fqdn, ipAddress)
 			return nil
 		}
 		existing.Value = ipAddress
 		if _, err := client.DNS().Update(ctx, site, existing); err != nil {
 			return fmt.Errorf("failed to update DNS record: %w", err)
 		}
+		fmt.Fprintf(os.Stderr, "    updated DNS record: %s -> %s\n", fqdn, ipAddress)
+		return nil
+	}
+
+	if dryRun {
+		fmt.Fprintf(os.Stderr, "    would create DNS record: %s -> %s\n", fqdn, ipAddress)
 		return nil
 	}
 
 	record := &types.DNSRecord{
-		Key:        hostname,
+		Key:        fqdn,
 		Value:      ipAddress,
 		RecordType: types.DNSRecordTypeA,
 		Enabled:    true,
@@ -384,12 +436,14 @@ func ensureDNSRecord(ctx context.Context, client gofi.Client, site, hostname, ip
 	if _, err := client.DNS().Create(ctx, site, record); err != nil {
 		return fmt.Errorf("failed to create DNS record: %w", err)
 	}
+	fmt.Fprintf(os.Stderr, "    created DNS record: %s -> %s\n", fqdn, ipAddress)
 	return nil
 }
 
-func detectNetwork(networks []types.Network, ipAddress string) (string, error) {
+func detectNetwork(networks []types.Network, ipAddress string) (*types.Network, error) {
 	parsedIP := net.ParseIP(ipAddress)
-	for _, network := range networks {
+	for index := range networks {
+		network := &networks[index]
 		if network.IPSubnet == "" {
 			continue
 		}
@@ -398,8 +452,33 @@ func detectNetwork(networks []types.Network, ipAddress string) (string, error) {
 			continue
 		}
 		if subnet.Contains(parsedIP) {
-			return network.ID, nil
+			return network, nil
 		}
 	}
-	return "", fmt.Errorf("no network found containing IP %s", ipAddress)
+	return nil, fmt.Errorf("no network found containing IP %s", ipAddress)
+}
+
+// domainForIP returns the local domain of the network that owns the IP, or an
+// empty string if the IP is not in any network or that network has no domain.
+// Used on the DNS-repair path where a missing network is non-fatal.
+func domainForIP(networks []types.Network, ipAddress string) string {
+	network, err := detectNetwork(networks, ipAddress)
+	if err != nil {
+		return ""
+	}
+	return network.DomainName
+}
+
+// dnsHostnameMatches reports whether a DNS record key belongs to the given
+// hostname, accepting either the bare hostname or its FQDN form
+// (hostname + "." + domain). The first label of the key must equal the hostname.
+func dnsHostnameMatches(dnsKey, hostname string) bool {
+	if dnsKey == hostname {
+		return true
+	}
+	firstLabel := dnsKey
+	if index := strings.Index(dnsKey, "."); index >= 0 {
+		firstLabel = dnsKey[:index]
+	}
+	return firstLabel == hostname
 }

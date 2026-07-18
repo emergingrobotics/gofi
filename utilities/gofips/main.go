@@ -68,7 +68,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  -S, --site string\tSite name (default \"default\")\n")
 		fmt.Fprintf(os.Stderr, "  -k, --insecure\tSkip TLS certificate verification\n\n")
 		fmt.Fprintf(os.Stderr, "Other:\n")
-		fmt.Fprintf(os.Stderr, "  -f, --force\t\tSkip conflict checks; force operations\n")
+		fmt.Fprintf(os.Stderr, "  -f, --force\t\tSkip conflict checks; with --set, re-process unchanged entries\n")
 		fmt.Fprintf(os.Stderr, "  -K, --keep-dns\tDo not delete DNS records on delete\n")
 		fmt.Fprintf(os.Stderr, "      --dry-run\t\tShow what would be done without making changes\n\n")
 		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
@@ -186,7 +186,7 @@ func main() {
 		}
 
 	case *set:
-		result, err := DoSet(ctx, client, *site, parsedEntries, *dryRun)
+		result, err := DoSet(ctx, client, *site, parsedEntries, *dryRun, *force)
 		if err != nil {
 			exitError(err.Error())
 		}

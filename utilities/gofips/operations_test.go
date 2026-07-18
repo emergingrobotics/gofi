@@ -244,7 +244,7 @@ func newTestClient() *mockClient {
 	return &mockClient{
 		networks: mockNetworkService{
 			networks: []types.Network{
-				{ID: "net_lan", Name: "LAN", IPSubnet: "192.168.1.0/24"},
+				{ID: "net_lan", Name: "LAN", IPSubnet: "192.168.1.0/24", DomainName: "lan.test"},
 				{ID: "net_iot", Name: "IoT", IPSubnet: "10.0.0.0/24"},
 			},
 		},
@@ -334,7 +334,7 @@ func TestDoSet_CreateNew(t *testing.T) {
 		{Hostname: "server2", MAC: "aa:bb:cc:dd:ee:02", IP: "192.168.1.20"},
 	}
 
-	result, err := DoSet(context.Background(), client, "default", entries, false)
+	result, err := DoSet(context.Background(), client, "default", entries, false, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -361,7 +361,7 @@ func TestDoSet_SkipUnchanged(t *testing.T) {
 		{Hostname: "server1", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.10"},
 	}
 
-	result, err := DoSet(context.Background(), client, "default", entries, false)
+	result, err := DoSet(context.Background(), client, "default", entries, false, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -379,7 +379,7 @@ func TestDoSet_UpdateChanged(t *testing.T) {
 		{Hostname: "new-name", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.10"},
 	}
 
-	result, err := DoSet(context.Background(), client, "default", entries, false)
+	result, err := DoSet(context.Background(), client, "default", entries, false, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -400,7 +400,7 @@ func TestDoSet_DryRun(t *testing.T) {
 		{Hostname: "server1", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.10"},
 	}
 
-	result, err := DoSet(context.Background(), client, "default", entries, true)
+	result, err := DoSet(context.Background(), client, "default", entries, true, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -409,6 +409,9 @@ func TestDoSet_DryRun(t *testing.T) {
 	}
 	if len(client.users.users) != 0 {
 		t.Errorf("dry run should not create users, got %d", len(client.users.users))
+	}
+	if len(client.dns.records) != 0 {
+		t.Errorf("dry run should not create DNS records, got %d", len(client.dns.records))
 	}
 }
 
@@ -543,7 +546,7 @@ func TestDoSet_NetworkDetection(t *testing.T) {
 		{Hostname: "iot-host", MAC: "aa:bb:cc:dd:ee:02", IP: "10.0.0.50"},
 	}
 
-	result, err := DoSet(context.Background(), client, "default", entries, false)
+	result, err := DoSet(context.Background(), client, "default", entries, false, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -556,5 +559,217 @@ func TestDoSet_NetworkDetection(t *testing.T) {
 	}
 	if client.users.users[1].NetworkID != "net_iot" {
 		t.Errorf("second user network = %q, want net_iot", client.users.users[1].NetworkID)
+	}
+}
+
+func TestDetectNetwork_ReturnsNetworkWithDomain(t *testing.T) {
+	client := newTestClient()
+	nets, _ := client.networks.List(context.Background(), "default")
+
+	network, err := detectNetwork(nets, "192.168.1.50")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if network.ID != "net_lan" {
+		t.Errorf("network ID = %q, want net_lan", network.ID)
+	}
+	if network.DomainName != "lan.test" {
+		t.Errorf("domain = %q, want lan.test", network.DomainName)
+	}
+
+	if _, err := detectNetwork(nets, "8.8.8.8"); err == nil {
+		t.Error("expected error for IP outside all subnets")
+	}
+}
+
+func TestEnsureDNSRecord_CreatesFQDNKey(t *testing.T) {
+	client := newTestClient()
+
+	err := ensureDNSRecord(context.Background(), client, "default", "helios", "herlein.me", "192.168.4.30", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(client.dns.records) != 1 {
+		t.Fatalf("record count = %d, want 1", len(client.dns.records))
+	}
+	if got := client.dns.records[0].Key; got != "helios.herlein.me" {
+		t.Errorf("key = %q, want helios.herlein.me", got)
+	}
+	if got := client.dns.records[0].Value; got != "192.168.4.30" {
+		t.Errorf("value = %q, want 192.168.4.30", got)
+	}
+}
+
+func TestEnsureDNSRecord_ReplacesBareRecord(t *testing.T) {
+	client := newTestClient()
+	client.dns.records = []types.DNSRecord{
+		{ID: "d1", Key: "helios", Value: "192.168.4.30", RecordType: "A", Enabled: true},
+	}
+
+	err := ensureDNSRecord(context.Background(), client, "default", "helios", "herlein.me", "192.168.4.30", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(client.dns.records) != 1 {
+		t.Fatalf("record count = %d, want 1 (bare replaced, not duplicated)", len(client.dns.records))
+	}
+	if got := client.dns.records[0].Key; got != "helios.herlein.me" {
+		t.Errorf("key = %q, want helios.herlein.me", got)
+	}
+}
+
+func TestEnsureDNSRecord_UpdatesStaleValue(t *testing.T) {
+	client := newTestClient()
+	client.dns.records = []types.DNSRecord{
+		{ID: "d1", Key: "helios.herlein.me", Value: "192.168.4.99", RecordType: "A", Enabled: true},
+	}
+
+	err := ensureDNSRecord(context.Background(), client, "default", "helios", "herlein.me", "192.168.4.30", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(client.dns.records) != 1 {
+		t.Fatalf("record count = %d, want 1", len(client.dns.records))
+	}
+	if got := client.dns.records[0].Value; got != "192.168.4.30" {
+		t.Errorf("value = %q, want 192.168.4.30 (updated)", got)
+	}
+}
+
+func TestEnsureDNSRecord_NoOpWhenCorrect(t *testing.T) {
+	client := newTestClient()
+	client.dns.records = []types.DNSRecord{
+		{ID: "d1", Key: "helios.herlein.me", Value: "192.168.4.30", RecordType: "A", Enabled: true},
+	}
+
+	err := ensureDNSRecord(context.Background(), client, "default", "helios", "herlein.me", "192.168.4.30", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(client.dns.records) != 1 {
+		t.Fatalf("record count = %d, want 1", len(client.dns.records))
+	}
+	if got := client.dns.records[0].ID; got != "d1" {
+		t.Errorf("record ID = %q, want d1 (unchanged, not recreated)", got)
+	}
+}
+
+func TestEnsureDNSRecord_BareFallbackWhenNoDomain(t *testing.T) {
+	client := newTestClient()
+
+	err := ensureDNSRecord(context.Background(), client, "default", "iot-host", "", "10.0.0.50", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(client.dns.records) != 1 {
+		t.Fatalf("record count = %d, want 1", len(client.dns.records))
+	}
+	if got := client.dns.records[0].Key; got != "iot-host" {
+		t.Errorf("key = %q, want iot-host (bare fallback)", got)
+	}
+}
+
+func TestEnsureDNSRecord_DryRunNoMutation(t *testing.T) {
+	client := newTestClient()
+
+	err := ensureDNSRecord(context.Background(), client, "default", "helios", "herlein.me", "192.168.4.30", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(client.dns.records) != 0 {
+		t.Errorf("dry run created %d records, want 0", len(client.dns.records))
+	}
+}
+
+func TestDoSet_UnchangedUserRepairsMissingDNS(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:01", Name: "server1", UseFixedIP: true, FixedIP: "192.168.1.10"},
+	}
+	entries := []HostEntry{
+		{Hostname: "server1", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.10"},
+	}
+
+	result, err := DoSet(context.Background(), client, "default", entries, false, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Skipped != 1 {
+		t.Errorf("skipped = %d, want 1 (user record unchanged)", result.Skipped)
+	}
+	if len(client.dns.records) != 1 {
+		t.Fatalf("DNS record count = %d, want 1 (repaired despite user skip)", len(client.dns.records))
+	}
+	if got := client.dns.records[0].Key; got != "server1.lan.test" {
+		t.Errorf("key = %q, want server1.lan.test", got)
+	}
+}
+
+func TestDoSet_UnchangedUserReplacesBareDNS(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:01", Name: "server1", UseFixedIP: true, FixedIP: "192.168.1.10"},
+	}
+	client.dns.records = []types.DNSRecord{
+		{ID: "d1", Key: "server1", Value: "192.168.1.10", RecordType: "A", Enabled: true},
+	}
+	entries := []HostEntry{
+		{Hostname: "server1", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.10"},
+	}
+
+	result, err := DoSet(context.Background(), client, "default", entries, false, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Skipped != 1 {
+		t.Errorf("skipped = %d, want 1", result.Skipped)
+	}
+	if len(client.dns.records) != 1 {
+		t.Fatalf("DNS record count = %d, want 1 (bare replaced with FQDN)", len(client.dns.records))
+	}
+	if got := client.dns.records[0].Key; got != "server1.lan.test" {
+		t.Errorf("key = %q, want server1.lan.test", got)
+	}
+}
+
+func TestDoSet_ForceRewritesUnchanged(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:01", Name: "server1", UseFixedIP: true, FixedIP: "192.168.1.10"},
+	}
+	entries := []HostEntry{
+		{Hostname: "server1", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.10"},
+	}
+
+	result, err := DoSet(context.Background(), client, "default", entries, false, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Updated != 1 {
+		t.Errorf("updated = %d, want 1 (force rewrites unchanged)", result.Updated)
+	}
+	if result.Skipped != 0 {
+		t.Errorf("skipped = %d, want 0 (force never skips)", result.Skipped)
+	}
+	if len(client.dns.records) != 1 {
+		t.Errorf("DNS record count = %d, want 1", len(client.dns.records))
+	}
+}
+
+func TestDNSHostnameMatches(t *testing.T) {
+	cases := []struct {
+		dnsKey   string
+		hostname string
+		want     bool
+	}{
+		{"helios.herlein.me", "helios", true},
+		{"helios", "helios", true},
+		{"printer.herlein.me", "helios", false},
+		{"heliosx.herlein.me", "helios", false},
+	}
+	for _, c := range cases {
+		if got := dnsHostnameMatches(c.dnsKey, c.hostname); got != c.want {
+			t.Errorf("dnsHostnameMatches(%q, %q) = %v, want %v", c.dnsKey, c.hostname, got, c.want)
+		}
 	}
 }
