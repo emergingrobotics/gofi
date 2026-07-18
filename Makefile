@@ -31,12 +31,12 @@ coverage:
 
 # Build all examples (always rebuilds)
 examples:
-	@mkdir -p bin/examples
+	@mkdir -p bin
 	@for ex in $(EXAMPLES); do \
 		echo "Building $$ex..."; \
-		go build -o bin/examples/$$ex ./examples/$$ex; \
+		go build -o bin/$$ex ./examples/$$ex; \
 	done
-	@echo "All examples built in bin/examples/"
+	@echo "All examples built in bin/"
 
 # Clean example binaries
 examples-clean:
@@ -87,7 +87,7 @@ help:
 	@echo "  coverage      Generate coverage report"
 	@echo ""
 	@echo "Example targets:"
-	@echo "  examples        Build all examples to bin/examples/"
+	@echo "  examples        Build all examples to bin/"
 	@echo "  examples-clean  Remove example binaries"
 	@echo "  examples-test   Verify all examples compile"
 	@echo ""

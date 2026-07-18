@@ -12,6 +12,22 @@ bin/
 *.so
 *.dylib
 
+# Guard against binaries accidentally built into the repo root (they belong in bin/).
+# Leading slash anchors to root so the source package directories are unaffected.
+/basic
+/crud
+/errors
+/concurrent
+/websocket
+/list
+/fixedips
+/addfixedip
+/delfixedip
+/switches
+/gofip
+/gofips
+/gofimac
+
 # Go build artifacts
 *.o
 *.a
@@ -68,3 +84,4 @@ temp/
 # Go workspace files (if not using workspaces)
 go.work
 go.work.sum
+.llm/
