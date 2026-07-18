@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"text/tabwriter"
 )
 
 const noIPPlaceholder = "-"
@@ -16,19 +17,25 @@ const (
 	secondsPerYear   = secondsPerDay * 365
 )
 
-// FormatText writes client entries as tab-separated columns for terminal display.
-// The STATUS column is included only in history views (showStatus). AGE and
-// LAST-SEEN are rendered relative to now (unix seconds).
+// columnPadding is the minimum number of spaces between aligned columns.
+const columnPadding = 2
+
+// FormatText writes client entries as space-aligned columns for terminal display,
+// with each column padded to its widest cell via text/tabwriter. The STATUS column
+// is included only in history views (showStatus). AGE and LAST-SEEN are rendered
+// relative to now (unix seconds).
 func FormatText(writer io.Writer, entries []ClientEntry, showStatus bool, now int64) error {
 	if len(entries) == 0 {
 		return nil
 	}
 
+	tabWriter := tabwriter.NewWriter(writer, 0, 0, columnPadding, ' ', 0)
+
 	header := "MAC\tIP\tHOSTNAME\tOUI-MANUFACTURER\tAGE\tLAST-SEEN"
 	if showStatus {
 		header += "\tSTATUS"
 	}
-	if _, err := fmt.Fprintln(writer, header); err != nil {
+	if _, err := fmt.Fprintln(tabWriter, header); err != nil {
 		return err
 	}
 
@@ -43,11 +50,11 @@ func FormatText(writer io.Writer, entries []ClientEntry, showStatus bool, now in
 		if showStatus {
 			line += "\t" + entry.Status
 		}
-		if _, err := fmt.Fprintln(writer, line); err != nil {
+		if _, err := fmt.Fprintln(tabWriter, line); err != nil {
 			return err
 		}
 	}
-	return nil
+	return tabWriter.Flush()
 }
 
 // formatRelativeTime renders a unix timestamp as a compact age relative to now,

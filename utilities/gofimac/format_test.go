@@ -77,6 +77,26 @@ func TestFormatText_HistoryShowsStatusColumn(t *testing.T) {
 	}
 }
 
+func TestFormatText_ColumnsAligned(t *testing.T) {
+	entries := []ClientEntry{
+		{MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.10", Hostname: "a", Manufacturer: "MfrOne"},
+		{MAC: "aa:bb:cc:dd:ee:02", IP: "192.168.1.100", Hostname: "muchlongerhostname", Manufacturer: "MfrTwo"},
+	}
+	var buffer bytes.Buffer
+	if err := FormatText(&buffer, entries, false, 0); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(buffer.String()), "\n")
+	// The hostname column has different widths across the two rows; the following
+	// OUI-MANUFACTURER column must still begin at the same offset in both.
+	indexOne := strings.Index(lines[1], "MfrOne")
+	indexTwo := strings.Index(lines[2], "MfrTwo")
+	if indexOne != indexTwo {
+		t.Errorf("manufacturer column misaligned: row1 at %d, row2 at %d\n%s", indexOne, indexTwo, buffer.String())
+	}
+}
+
 func TestFormatRelativeTime(t *testing.T) {
 	const now int64 = 1_000_000_000
 	cases := []struct {
@@ -137,8 +157,10 @@ func TestFormatText_NoIPShowsDash(t *testing.T) {
 	if len(lines) != 2 {
 		t.Fatalf("expected 2 lines (header + data), got %d", len(lines))
 	}
-	if !strings.Contains(lines[1], "\t-\t") {
-		t.Errorf("expected dash for missing IP: %s", lines[1])
+	// Columns are space-aligned; the IP is the second whitespace-delimited field.
+	fields := strings.Fields(lines[1])
+	if len(fields) < 2 || fields[1] != noIPPlaceholder {
+		t.Errorf("expected dash for missing IP in second column: %s", lines[1])
 	}
 }
 
