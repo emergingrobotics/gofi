@@ -151,3 +151,63 @@ New/updated cases:
 - `DoAdd`: creates an FQDN-keyed record; conflict check uses the FQDN.
 
 Run `make test` (mock-backed) to verify.
+
+## Revision 2026-07-18: two DNS paths and the device-local overlap guard
+
+A live probe against the UDM established that it serves names from two distinct
+subsystems, and this changes how records must be created:
+
+1. **Device-local DNS (automatic).** The UDM auto-registers active DHCP clients
+   and fixed-IP reservations, serving both `<host>` and `<host>.<domain>`. These
+   entries are **invisible to the static-records API** (`DNS().List()` /
+   `GetByName()` never return them).
+2. **Static local DNS records (manual).** What `gofips` creates and the only
+   thing the records API exposes.
+
+Critically, the UDM **rejects** a static record whose name is already served by
+device-local DNS, with `api.err.StaticDnsOverlapsWithDeviceLocalDns`. So a
+static record cannot be forced to shadow or override device-local DNS; the two
+are mutually exclusive per name.
+
+### Consequence for `ensureDNSRecord`
+
+Existence can no longer be judged by `GetByName` alone (it sees only Path 2).
+`ensureDNSRecord` now consults a **live resolver pointed at the UDM** (`net.Resolver`
+dialing `<udm>:53`), which sees both paths, and acts on the result:
+
+- Static record we own exists -> reconcile its value (update if wrong).
+- No static record, name already resolves to the correct IP -> **do nothing**
+  (device-local DNS handles it; a static record would be rejected anyway).
+- No static record, name resolves to a **different** IP -> report **drift**;
+  cannot be corrected with a static record (fix the reservation instead).
+- No static record, name does not resolve -> **create** the static record.
+- A create that still races into an overlap error is treated as "already served",
+  not a failure.
+
+The live resolver is injected (package-level `resolveFQDN`, installed by `main`,
+stubbed in tests).
+
+### `--get` drift audit
+
+`--get` additionally queries the live resolver per host and warns when a name
+resolves to an IP other than its fixed IP, turning export into a consistency
+audit.
+
+## Name-resolution contract
+
+- **FQDN (`<host>.<domain>`) is the contract.** `gofips` guarantees the FQDN
+  resolves to the reservation's IP, via device-local DNS when present, or via a
+  static record it creates when not.
+- **Bare hostname is DHCP convenience, not guaranteed by `gofips`.** Bare names
+  are served by the UDM's device-local DNS for reservations; `gofips` does not
+  create bare-key static records (they are the pattern that broke FQDN
+  resolution and are removed on sight). Clients that need bare-name resolution
+  rely on the search domain (systemd-resolved qualifies `helios` to
+  `helios.<domain>`), which the FQDN contract satisfies.
+
+## `gofip` removal
+
+The legacy `gofip` tool (flat `IP MAC` format, no DNS support) is removed;
+`gofips` fully supersedes it. Deleted: `utilities/gofip/`,
+`utilities/docs/gofip/`, the `gofip` entry in the Makefile `UTILITIES` list, and
+the README legacy section.

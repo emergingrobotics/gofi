@@ -40,6 +40,10 @@ func DoGet(ctx context.Context, client gofi.Client, site string, writer io.Write
 		}
 	}
 
+	// Networks give the per-network domain used to build each FQDN for the
+	// live drift check below. Non-fatal: without them, drift is simply not audited.
+	networks, _ := client.Networks().List(ctx, site)
+
 	var entries []HostEntry
 	for _, user := range users {
 		if !user.UseFixedIP || user.FixedIP == "" {
@@ -52,6 +56,16 @@ func DoGet(ctx context.Context, client gofi.Client, site string, writer io.Write
 		// FQDNs (host.domain), so compare on the first label, not the full key.
 		if dnsHostname, ok := ipToDNSHostname[user.FixedIP]; ok && !dnsHostnameMatches(dnsHostname, hostname) {
 			fmt.Fprintf(os.Stderr, "  warning: %s has DNS hostname %q but user hostname %q\n", user.FixedIP, dnsHostname, hostname)
+		}
+
+		// Audit for value drift: the name resolving to an IP other than the
+		// fixed IP means DNS and the reservation disagree.
+		fqdn := hostname
+		if domain := domainForIP(networks, user.FixedIP); domain != "" {
+			fqdn = hostname + "." + domain
+		}
+		if addrs, _ := resolveFQDN(ctx, fqdn); len(addrs) > 0 && !containsString(addrs, user.FixedIP) {
+			fmt.Fprintf(os.Stderr, "  warning: %s resolves to %s (drift from fixed IP %s)\n", fqdn, strings.Join(addrs, ","), user.FixedIP)
 		}
 
 		entries = append(entries, HostEntry{
@@ -383,10 +397,42 @@ func findUserByIdentifier(ctx context.Context, client gofi.Client, site string, 
 	return nil, fmt.Errorf("no identifier specified (use --name, --mac, or --ip)")
 }
 
-// ensureDNSRecord makes the UDM hold a single A record keyed on the FQDN
-// (hostname + "." + domain) for the given IP. When domain is empty it falls
-// back to a bare-hostname key. Any pre-existing bare-hostname record for this
-// host is deleted so the FQDN record replaces it rather than duplicating it.
+// dnsResolver queries the UDM's own DNS, returning the A records it serves for
+// a name from BOTH device-local (DHCP) DNS and static records. This is the only
+// way to see device-local entries, which are invisible to the static-record API.
+type dnsResolver func(ctx context.Context, fqdn string) ([]string, error)
+
+// resolveFQDN is the live UDM resolver. main() installs one pointed at the UDM;
+// the default treats every name as unresolved so tests and misconfiguration fall
+// back to attempting a static record rather than silently skipping.
+var resolveFQDN dnsResolver = func(ctx context.Context, fqdn string) ([]string, error) {
+	return nil, nil
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+// isOverlapError reports whether a DNS create failed because the name is already
+// served by the UDM's device-local DNS. The UDM rejects such static records with
+// api.err.StaticDnsOverlapsWithDeviceLocalDns.
+func isOverlapError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "StaticDnsOverlaps")
+}
+
+// ensureDNSRecord makes the FQDN (hostname + "." + domain) resolve to the given
+// IP. It prefers what already works: if the UDM's device-local DNS already
+// answers the name correctly, no static record is created (the UDM would reject
+// it as overlapping anyway). A static record is created only when the name does
+// not resolve at all. If the name resolves to a different IP via device-local
+// DNS, that is reported as drift because a static record cannot override it.
+// Any legacy bare-hostname static record we previously wrote is removed first.
+// When domain is empty the FQDN degrades to the bare hostname.
 func ensureDNSRecord(ctx context.Context, client gofi.Client, site, hostname, domain, ipAddress string, dryRun bool) error {
 	fqdn := hostname
 	if domain != "" {
@@ -405,6 +451,7 @@ func ensureDNSRecord(ctx context.Context, client gofi.Client, site, hostname, do
 		}
 	}
 
+	// A static record we own: reconcile its value.
 	existing, _ := client.DNS().GetByName(ctx, site, fqdn)
 	if existing != nil {
 		if existing.Value == ipAddress {
@@ -422,6 +469,16 @@ func ensureDNSRecord(ctx context.Context, client gofi.Client, site, hostname, do
 		return nil
 	}
 
+	// No static record. Consult the UDM's live view (device-local DNS + static).
+	addrs, _ := resolveFQDN(ctx, fqdn)
+	if containsString(addrs, ipAddress) {
+		fmt.Fprintf(os.Stderr, "    ok: %s already resolves to %s (device local DNS)\n", fqdn, ipAddress)
+		return nil
+	}
+	if len(addrs) > 0 {
+		return fmt.Errorf("%s resolves to %s via device local DNS, not %s; correct the DHCP reservation", fqdn, strings.Join(addrs, ","), ipAddress)
+	}
+
 	if dryRun {
 		fmt.Fprintf(os.Stderr, "    would create DNS record: %s -> %s\n", fqdn, ipAddress)
 		return nil
@@ -434,6 +491,11 @@ func ensureDNSRecord(ctx context.Context, client gofi.Client, site, hostname, do
 		Enabled:    true,
 	}
 	if _, err := client.DNS().Create(ctx, site, record); err != nil {
+		if isOverlapError(err) {
+			// Device-local DNS registered the name between our lookup and create.
+			fmt.Fprintf(os.Stderr, "    ok: %s served by device local DNS (static overlaps)\n", fqdn)
+			return nil
+		}
 		return fmt.Errorf("failed to create DNS record: %w", err)
 	}
 	fmt.Fprintf(os.Stderr, "    created DNS record: %s -> %s\n", fqdn, ipAddress)

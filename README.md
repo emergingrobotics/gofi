@@ -22,7 +22,7 @@ The `UNIFI_UDM_IP` variable is optional and provides a fallback host address whe
 
 ### gofips
 
-Manages fixed IP (DHCP reservation) assignments **with hostnames and DNS records** on a UDM Pro, using the industry-standard ISC DHCP `dhcpd.conf` host-declaration format. This is the recommended tool for bulk fixed-IP management — it supersedes `gofip` and the `fixedips` / `addfixedip` / `delfixedip` examples by adding hostname and DNS support.
+Manages fixed IP (DHCP reservation) assignments **with hostnames and DNS records** on a UDM Pro, using the industry-standard ISC DHCP `dhcpd.conf` host-declaration format. This is the tool for bulk fixed-IP management — it replaces the earlier `fixedips` / `addfixedip` / `delfixedip` examples by adding hostname and DNS support.
 
 **Export current assignments** (dump to disk, edit, push back):
 
@@ -111,17 +111,6 @@ The IEEE OUI database is downloaded and cached under `$XDG_DATA_HOME/gofimac/` (
 | `--insecure` | `-k` | Skip TLS certificate verification |
 
 See [utilities/gofimac/README.md](./utilities/gofimac/README.md) and [utilities/docs/gofimac/DESIGN.md](./utilities/docs/gofimac/DESIGN.md) for details.
-
-### gofip (legacy)
-
-The original fixed-IP tool. Stores assignments as a plain text file — one `IP MAC` pair per line, with no hostname or DNS support. Kept as a reference implementation; **use `gofips` for new work.**
-
-```bash
-gofip -H 192.168.1.1 -k --get > hosts.txt   # export "IP MAC" pairs
-gofip -H 192.168.1.1 -k --set hosts.txt      # import
-```
-
-See [utilities/docs/gofip/DESIGN.md](./utilities/docs/gofip/DESIGN.md) for the full design.
 
 ---
 

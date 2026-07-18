@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -96,6 +97,14 @@ func main() {
 		exitError("specify only one mode (--get, --set, --add, or --del)")
 	}
 
+	// Go's flag package stops parsing at the first positional argument, so a
+	// flag placed after it (e.g. `--set hosts.conf --dry-run`) is silently
+	// ignored. Reject that outright so a mistyped --dry-run cannot cause an
+	// unintended write.
+	if err := checkStrayFlags(flag.Args()); err != nil {
+		exitError(err.Error())
+	}
+
 	// Resolve host
 	if *host == "" {
 		*host = os.Getenv(envUDMIP)
@@ -147,6 +156,19 @@ func main() {
 		if idCount > 1 {
 			exitError("--del requires exactly one of --name, --mac, or --ip")
 		}
+	}
+
+	// Install the live resolver pointed at the UDM itself, so DNS existence
+	// checks see device-local (DHCP) DNS as well as static records.
+	resolveFQDN = func(ctx context.Context, fqdn string) ([]string, error) {
+		resolver := &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				dialer := net.Dialer{Timeout: 3 * time.Second}
+				return dialer.DialContext(ctx, "udp", net.JoinHostPort(*host, "53"))
+			},
+		}
+		return resolver.LookupHost(ctx, fqdn)
 	}
 
 	// Connect
@@ -252,6 +274,19 @@ func boolCount(values ...bool) int {
 		}
 	}
 	return count
+}
+
+// checkStrayFlags rejects positional arguments that look like flags. Go's flag
+// package treats everything after the first positional as further positionals,
+// so `--set hosts.conf --dry-run` would silently drop --dry-run; erroring here
+// turns that footgun into a clear failure. A bare "-" is allowed.
+func checkStrayFlags(args []string) error {
+	for _, arg := range args {
+		if len(arg) > 1 && strings.HasPrefix(arg, "-") {
+			return fmt.Errorf("flag %q must appear before positional arguments (place flags like --dry-run before the filename)", arg)
+		}
+	}
+	return nil
 }
 
 func exitError(message string) {

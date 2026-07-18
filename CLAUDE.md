@@ -74,7 +74,7 @@ The mock server must:
 
 ## gofips Tool
 
-A command-line tool for managing fixed IP + DNS assignments on a UniFi UDM Pro using ISC DHCP host declaration format. Lives in `utilities/gofips/`. Built on the gofi module. Replaces and extends the existing `gofip` tool by adding hostname support and ISC DHCP format compatibility.
+A command-line tool for managing fixed IP + DNS assignments on a UniFi UDM Pro using ISC DHCP host declaration format. Lives in `utilities/gofips/`. Built on the gofi module. Provides hostname support and ISC DHCP format compatibility.
 
 ### Purpose
 
@@ -142,7 +142,7 @@ Exactly one identifier must be given with `--del`. If a MAC or IP matches multip
 
 ### Connection Flags
 
-Same as `gofip`:
+Connection flags:
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
@@ -176,7 +176,7 @@ Same as `gofip`:
    - Fall back to `user.Hostname` if set and DNS-safe.
    - If neither is DNS-safe, use the MAC address with colons replaced by hyphens (e.g., `aa-bb-cc-dd-ee-ff`) as the hostname.
 4. Optionally cross-reference DNS records via `client.DNS().GetByIP()` to verify hostname matches a DNS A record. If a DNS record exists with a different hostname than the user record, emit a comment warning above that entry.
-5. Sort entries by IP address numerically (same uint32 conversion as `gofip`).
+5. Sort entries by IP address numerically (uint32 conversion).
 6. Output to stdout in ISC DHCP format with a header comment:
 
 ```
@@ -215,7 +215,7 @@ host printer {
    - **Skip if unchanged**: MAC already has the same IP and hostname. Print skip to stderr.
    - **Update if changed**: MAC exists but IP or hostname differs. Update the user record and DNS record. Print update to stderr.
    - **Create if new**: MAC has no existing user. Create user with fixed IP, create DNS A record. Print create to stderr.
-6. Network auto-detection: determine which UDM network contains each IP by checking subnets, same as `gofip`.
+6. Network auto-detection: determine which UDM network contains each IP by checking subnets.
 7. Print summary to stderr: `N processed, N skipped, N created, N updated, N errors`.
 8. Exit 1 if any errors occurred.
 
@@ -291,9 +291,9 @@ Delete a host identified by one of `--name`, `--mac`, or `--ip`.
 
 ### Relationship to Existing Tools
 
-- `gofips` replaces the existing `gofip`, `addfixedip`, `delfixedip`, and `fixedips` examples.
-- The existing tools remain as reference implementations but `gofips` is the production tool.
-- `gofips` adds hostname/DNS management that `gofip` lacks.
+- `gofips` replaces the existing `addfixedip`, `delfixedip`, and `fixedips` examples.
+- Those examples remain as reference implementations but `gofips` is the production tool.
+- `gofips` adds hostname/DNS management that the flat-format tools lack.
 - `gofips` uses ISC DHCP format instead of the flat `IP MAC` format, making it compatible with existing dhcpd.conf files and network documentation.
 
 ### Project Layout

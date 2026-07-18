@@ -4,12 +4,26 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/unifi-go/gofi/services"
 	"github.com/unifi-go/gofi/types"
 )
+
+// setResolver installs a stub UDM resolver for the duration of a test.
+func setResolver(t *testing.T, fn dnsResolver) {
+	prev := resolveFQDN
+	resolveFQDN = fn
+	t.Cleanup(func() { resolveFQDN = prev })
+}
+
+// unresolvedResolver simulates the UDM answering NXDOMAIN for every name.
+func unresolvedResolver(ctx context.Context, fqdn string) ([]string, error) {
+	return nil, nil
+}
 
 // mockClient implements gofi.Client for testing operations.
 type mockClient struct {
@@ -18,23 +32,23 @@ type mockClient struct {
 	networks mockNetworkService
 }
 
-func (m *mockClient) Connect(ctx context.Context) error    { return nil }
-func (m *mockClient) Disconnect(ctx context.Context) error { return nil }
-func (m *mockClient) IsConnected() bool                    { return true }
-func (m *mockClient) Sites() services.SiteService           { return nil }
-func (m *mockClient) Devices() services.DeviceService       { return nil }
-func (m *mockClient) Networks() services.NetworkService     { return &m.networks }
-func (m *mockClient) WLANs() services.WLANService           { return nil }
-func (m *mockClient) Firewall() services.FirewallService     { return nil }
-func (m *mockClient) Clients() services.ClientService        { return nil }
-func (m *mockClient) Users() services.UserService           { return &m.users }
-func (m *mockClient) Routing() services.RoutingService       { return nil }
+func (m *mockClient) Connect(ctx context.Context) error         { return nil }
+func (m *mockClient) Disconnect(ctx context.Context) error      { return nil }
+func (m *mockClient) IsConnected() bool                         { return true }
+func (m *mockClient) Sites() services.SiteService               { return nil }
+func (m *mockClient) Devices() services.DeviceService           { return nil }
+func (m *mockClient) Networks() services.NetworkService         { return &m.networks }
+func (m *mockClient) WLANs() services.WLANService               { return nil }
+func (m *mockClient) Firewall() services.FirewallService        { return nil }
+func (m *mockClient) Clients() services.ClientService           { return nil }
+func (m *mockClient) Users() services.UserService               { return &m.users }
+func (m *mockClient) Routing() services.RoutingService          { return nil }
 func (m *mockClient) PortForwards() services.PortForwardService { return nil }
 func (m *mockClient) PortProfiles() services.PortProfileService { return nil }
-func (m *mockClient) Settings() services.SettingService      { return nil }
-func (m *mockClient) System() services.SystemService         { return nil }
-func (m *mockClient) Events() services.EventService          { return nil }
-func (m *mockClient) DNS() services.DNSService               { return &m.dns }
+func (m *mockClient) Settings() services.SettingService         { return nil }
+func (m *mockClient) System() services.SystemService            { return nil }
+func (m *mockClient) Events() services.EventService             { return nil }
+func (m *mockClient) DNS() services.DNSService                  { return &m.dns }
 
 // mockUserService implements services.UserService.
 type mockUserService struct {
@@ -144,7 +158,8 @@ func (m *mockUserService) DeleteGroup(ctx context.Context, site, id string) erro
 
 // mockDNSService implements services.DNSService.
 type mockDNSService struct {
-	records []types.DNSRecord
+	records   []types.DNSRecord
+	createErr error
 }
 
 func (m *mockDNSService) List(ctx context.Context, site string) ([]types.DNSRecord, error) {
@@ -180,6 +195,9 @@ func (m *mockDNSService) GetByIP(ctx context.Context, site, ip string) ([]types.
 }
 
 func (m *mockDNSService) Create(ctx context.Context, site string, record *types.DNSRecord) (*types.DNSRecord, error) {
+	if m.createErr != nil {
+		return nil, m.createErr
+	}
 	record.ID = fmt.Sprintf("dns_%d", len(m.records)+1)
 	m.records = append(m.records, *record)
 	return record, nil
@@ -771,5 +789,93 @@ func TestDNSHostnameMatches(t *testing.T) {
 		if got := dnsHostnameMatches(c.dnsKey, c.hostname); got != c.want {
 			t.Errorf("dnsHostnameMatches(%q, %q) = %v, want %v", c.dnsKey, c.hostname, got, c.want)
 		}
+	}
+}
+
+func TestEnsureDNSRecord_SkipsWhenDeviceLocalResolvesCorrectly(t *testing.T) {
+	client := newTestClient()
+	setResolver(t, func(ctx context.Context, fqdn string) ([]string, error) {
+		if fqdn == "helios.herlein.me" {
+			return []string{"192.168.4.30"}, nil
+		}
+		return nil, nil
+	})
+
+	err := ensureDNSRecord(context.Background(), client, "default", "helios", "herlein.me", "192.168.4.30", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(client.dns.records) != 0 {
+		t.Errorf("record count = %d, want 0 (device-local DNS already serves it; a static record would be rejected)", len(client.dns.records))
+	}
+}
+
+func TestEnsureDNSRecord_ReportsDriftWhenDeviceLocalWrong(t *testing.T) {
+	client := newTestClient()
+	setResolver(t, func(ctx context.Context, fqdn string) ([]string, error) {
+		return []string{"192.168.4.99"}, nil
+	})
+
+	err := ensureDNSRecord(context.Background(), client, "default", "helios", "herlein.me", "192.168.4.30", false)
+	if err == nil {
+		t.Fatal("expected drift error when device-local DNS resolves to a different IP")
+	}
+	if !strings.Contains(err.Error(), "device local DNS") {
+		t.Errorf("error = %q, want mention of device local DNS", err.Error())
+	}
+	if len(client.dns.records) != 0 {
+		t.Errorf("record count = %d, want 0 (cannot override device-local DNS)", len(client.dns.records))
+	}
+}
+
+func TestEnsureDNSRecord_ToleratesOverlapOnCreate(t *testing.T) {
+	client := newTestClient()
+	client.dns.createErr = fmt.Errorf("create DNS record failed with status 400: {\"code\":\"api.err.StaticDnsOverlapsWithDeviceLocalDns\"}")
+	setResolver(t, unresolvedResolver)
+
+	err := ensureDNSRecord(context.Background(), client, "default", "helios", "herlein.me", "192.168.4.30", false)
+	if err != nil {
+		t.Fatalf("overlap-on-create should be tolerated (name already served by device-local DNS), got: %v", err)
+	}
+}
+
+func TestContainsString(t *testing.T) {
+	if !containsString([]string{"a", "b"}, "b") {
+		t.Error("want true for present element")
+	}
+	if containsString([]string{"a"}, "b") {
+		t.Error("want false for absent element")
+	}
+	if containsString(nil, "b") {
+		t.Error("want false for nil slice")
+	}
+}
+
+func TestDoGet_WarnsOnValueDrift(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:01", Name: "server1", UseFixedIP: true, FixedIP: "192.168.1.10"},
+	}
+	setResolver(t, func(ctx context.Context, fqdn string) ([]string, error) {
+		if fqdn == "server1.lan.test" {
+			return []string{"192.168.1.99"}, nil
+		}
+		return nil, nil
+	})
+
+	old := os.Stderr
+	reader, writer, _ := os.Pipe()
+	os.Stderr = writer
+	var buf bytes.Buffer
+	err := DoGet(context.Background(), client, "default", &buf, FormatOptions{})
+	writer.Close()
+	os.Stderr = old
+	stderr, _ := io.ReadAll(reader)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(string(stderr), "192.168.1.99") {
+		t.Errorf("expected drift warning mentioning the resolved IP, got stderr: %q", string(stderr))
 	}
 }
