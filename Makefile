@@ -6,6 +6,10 @@ EXAMPLES := basic crud errors concurrent websocket list fixedips addfixedip delf
 # All utilities
 UTILITIES := gofips gofimac
 
+# Install destination. Defaults to the user's ~/bin so no sudo is needed.
+# Override with: make install INSTALL_DIR=/somewhere/else
+INSTALL_DIR ?= $(HOME)/bin
+
 .DEFAULT_GOAL := help
 
 all: lint test build utilities
@@ -66,13 +70,15 @@ utilities:
 utilities-clean:
 	rm -rf bin/
 
-# Install utilities to /usr/local/bin (requires sudo)
+# Install utilities to $(INSTALL_DIR) (~/bin by default, no sudo needed)
 install: utilities
+	@mkdir -p $(INSTALL_DIR)
 	@for util in $(UTILITIES); do \
-		echo "Installing $$util to /usr/local/bin/$$util"; \
-		sudo install -m 755 bin/$$util /usr/local/bin/$$util; \
+		echo "Installing $$util to $(INSTALL_DIR)/$$util"; \
+		install -m 755 bin/$$util $(INSTALL_DIR)/$$util; \
 	done
-	@echo "All utilities installed."
+	@echo "All utilities installed to $(INSTALL_DIR)."
+	@case ":$$PATH:" in *":$(INSTALL_DIR):"*) ;; *) echo "Note: $(INSTALL_DIR) is not on your PATH.";; esac
 
 # === Network probes ===
 
@@ -109,7 +115,7 @@ help:
 	@echo "Utility targets:"
 	@echo "  utilities       Build all utilities to bin/"
 	@echo "  utilities-clean Remove utility binaries"
-	@echo "  install         Build and install utilities to /usr/local/bin (sudo)"
+	@echo "  install         Build and install utilities to ~/bin (override INSTALL_DIR)"
 	@echo ""
 	@echo "Network probes:"
 	@echo "  mac-ping        ARP-ping a MAC on the local segment (MAC=<mac> [IFACE=<if>])"
