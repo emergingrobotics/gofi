@@ -114,6 +114,30 @@ See [utilities/gofimac/README.md](./utilities/gofimac/README.md) and [utilities/
 
 ---
 
+### gofinet
+
+List networks with their subnet and DHCP dynamic address pool. Tells you the range of
+dynamically-assigned addresses so you know which addresses are safe for static
+reservations (the companion to `gofips`).
+
+```bash
+gofinet -H 192.168.1.1         # all networks
+gofinet -H 192.168.1.1 -j      # JSON output
+```
+
+```
+NETWORK     VLAN  SUBNET           DHCP-POOL                        LEASE   GATEWAY  DNS
+Default     -     192.168.4.1/24   192.168.4.100 - 192.168.4.189    86400s  -        1.1.1.1,8.8.8.8
+cj-iot      2     192.168.10.1/24  192.168.10.100 - 192.168.10.200  86400s  -        -
+Internet 1  -     -                (disabled)                       -       -        -
+```
+
+Networks with no active DHCP server (WAN, vlan-only) show `(disabled)`.
+
+See [utilities/gofinet/README.md](./utilities/gofinet/README.md) for details.
+
+---
+
 ## Module
 
 The gofi Go module provides type-safe, concurrent-safe access to all major UniFi Network Application endpoints.
@@ -464,7 +488,7 @@ make coverage      # Generate coverage report
 make lint          # Run linter
 make build         # Build the module
 make examples      # Build all examples to bin/examples/
-make utilities     # Build all utilities (gofip, gofips, gofimac) to bin/
+make utilities     # Build all utilities (gofimac, gofinet, gofips) to bin/
 sudo make install  # Install utilities to /usr/local/bin
 make all           # Run lint, test, and build
 ```

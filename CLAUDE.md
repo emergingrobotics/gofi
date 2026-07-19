@@ -504,6 +504,93 @@ utilities/
       DESIGN.md       # Detailed design document
 ```
 
+## gofinet Tool
+
+A command-line tool for listing UniFi networks with their subnet and DHCP dynamic
+address pool. Lives in `utilities/gofinet/`. Built on the gofi module.
+
+### Purpose
+
+Administrators need to know the range of dynamically-assigned (DHCP pool) addresses
+on each network so they can choose safe addresses for static reservations. `gofinet`
+is the companion to `gofips`: the pool boundaries (`dhcpd_start`–`dhcpd_stop`) define
+which addresses in the subnet are handed out dynamically; everything else in the
+subnet is available for static assignment.
+
+### CLI Interface
+
+```
+gofinet [connection flags]
+gofinet [connection flags] -j
+```
+
+### Output Flags
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--json` | `-j` | Output in JSON format instead of text |
+
+### Connection Flags
+
+Same as `gofips`/`gofimac`:
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--host` | `-H` | `$UNIFI_CONTROLLER_IP` | UniFi controller address |
+| `--port` | `-p` | `443` | UniFi controller port |
+| `--site` | `-S` | `default` | UniFi site name |
+| `--secure` | `-k` | `false` | Enforce TLS certificate verification (default: accept self-signed) |
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `UNIFI_USERNAME` | Yes | Controller authentication username |
+| `UNIFI_PASSWORD` | Yes | Controller authentication password |
+| `UNIFI_CONTROLLER_IP` | No | Controller host address (fallback if `-H` not given) |
+
+### Behavior
+
+1. Connect to the controller.
+2. List all networks via `client.Networks().List()`.
+3. For each network, flatten to: name, purpose, VLAN (if tagged), subnet, enabled,
+   DHCP enabled, DHCP pool start/stop, lease time, advertised gateway (only when
+   `dhcpd_gateway_enabled`), and DNS servers (`dhcpd_dns_1..4`, non-empty).
+4. Sort entries by network name.
+5. Output text (space-aligned columns) or JSON (`-j`).
+
+### Text Output Format
+
+```
+NETWORK     VLAN  SUBNET           DHCP-POOL                        LEASE   GATEWAY  DNS
+Default     -     192.168.4.1/24   192.168.4.100 - 192.168.4.189    86400s  -        1.1.1.1,8.8.8.8
+cj-iot      2     192.168.10.1/24  192.168.10.100 - 192.168.10.200  86400s  -        -
+Internet 1  -     -                (disabled)                       -       -        -
+```
+
+Rules:
+- Networks with no active DHCP server (WAN, vlan-only, DHCP off) show `(disabled)`
+  in the pool column; lease/gateway/DNS show `-`.
+- `VLAN` shows `-` for untagged/default networks.
+- Columns are space-aligned via `text/tabwriter`.
+- Status/progress messages go to stderr.
+
+### JSON Output Format
+
+A JSON array; each object has `name`, `purpose`, `vlan`, `subnet`, `enabled`,
+`dhcp_enabled`, `dhcp_start`, `dhcp_stop`, `dhcp_lease`, `gateway`, `dns`. Empty/zero
+fields are omitted (`omitempty`).
+
+### Project Layout
+
+```
+utilities/
+  gofinet/
+    main.go           # Entry point, flag parsing, connection
+    operations.go     # Network listing and flattening
+    format.go         # Text and JSON output
+```
+
 ## Commands
 
 ```bash
