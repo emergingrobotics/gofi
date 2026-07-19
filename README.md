@@ -18,7 +18,7 @@ export UNIFI_USERNAME=admin
 export UNIFI_PASSWORD=your-password
 ```
 
-The `UNIFI_UDM_IP` variable is optional and provides a fallback host address when `-H` is not given.
+The `UNIFI_CONTROLLER_IP` variable is optional and provides a fallback host address when `-H` is not given.
 
 ### gofips
 
@@ -72,7 +72,7 @@ gofips -H 192.168.1.1 -k --del --name mydev   # or --mac / --ip
 | `--force` | `-f` | Skip conflict checks; force delete of the user record |
 | `--keep-dns` | `-K` | Preserve DNS records when deleting |
 | `--dry-run` | | Preview changes without applying |
-| `--host` | `-H` | UDM Pro host address (or set `UNIFI_UDM_IP`) |
+| `--host` | `-H` | UDM Pro host address (or set `UNIFI_CONTROLLER_IP`) |
 | `--port` | `-p` | Port (default: 443) |
 | `--site` | `-S` | Site name (default: "default") |
 | `--insecure` | `-k` | Skip TLS certificate verification |
@@ -105,7 +105,7 @@ The IEEE OUI database is downloaded and cached under `$XDG_DATA_HOME/gofimac/` (
 | `--wired` | `-e` | List only wired clients |
 | `--all` | `-a` | List all clients (default) |
 | `--json` | `-j` | Output JSON instead of text |
-| `--host` | `-H` | UDM Pro host address (or set `UNIFI_UDM_IP`) |
+| `--host` | `-H` | UDM Pro host address (or set `UNIFI_CONTROLLER_IP`) |
 | `--port` | `-p` | Port (default: 443) |
 | `--site` | `-S` | Site name (default: "default") |
 | `--insecure` | `-k` | Skip TLS certificate verification |

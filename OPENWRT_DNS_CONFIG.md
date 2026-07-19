@@ -212,7 +212,7 @@ Create a script to sync DNS records from UniFi to OpenWrt:
 # /root/sync-unifi-dns.sh
 
 # Export credentials
-export UNIFI_UDM_IP="192.168.4.1"
+export UNIFI_CONTROLLER_IP="192.168.4.1"
 export UNIFI_USERNAME="admin"
 export UNIFI_PASSWORD="your-password"
 
@@ -364,7 +364,7 @@ nslookup wone 127.0.0.1
 **On Your Workstation:**
 ```bash
 # Use gofi to manage UniFi DNS
-export UNIFI_UDM_IP=192.168.4.1
+export UNIFI_CONTROLLER_IP=192.168.4.1
 bin/examples/addfixedip -m 20:05:b7:01:00:20 -i 192.168.4.35 -n wone -k
 
 # Test resolution through OpenWrt

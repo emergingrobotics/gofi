@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	envUsername = "UNIFI_USERNAME"
-	envPassword = "UNIFI_PASSWORD"
-	envUDMIP    = "UNIFI_UDM_IP"
+	envUsername     = "UNIFI_USERNAME"
+	envPassword     = "UNIFI_PASSWORD"
+	envControllerIP = "UNIFI_CONTROLLER_IP"
 )
 
 var macRegex = regexp.MustCompile(`^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$`)
@@ -50,9 +50,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
 		fmt.Fprintf(os.Stderr, "  %s\tUsername for UDM authentication (required)\n", envUsername)
 		fmt.Fprintf(os.Stderr, "  %s\tPassword for UDM authentication (required)\n", envPassword)
-		fmt.Fprintf(os.Stderr, "  %s\tUDM Pro host address (optional, can use -H instead)\n\n", envUDMIP)
+		fmt.Fprintf(os.Stderr, "  %s\tUDM Pro host address (optional, can use -H instead)\n\n", envControllerIP)
 		fmt.Fprintf(os.Stderr, "Options:\n")
-		fmt.Fprintf(os.Stderr, "  -H, --host string\tUDM Pro host address (required unless %s is set)\n", envUDMIP)
+		fmt.Fprintf(os.Stderr, "  -H, --host string\tUDM Pro host address (required unless %s is set)\n", envControllerIP)
 		fmt.Fprintf(os.Stderr, "  -p, --port int\tUDM Pro port (default 443)\n")
 		fmt.Fprintf(os.Stderr, "  -s, --site string\tSite name (default \"default\")\n")
 		fmt.Fprintf(os.Stderr, "  -k, --insecure\tSkip TLS certificate verification\n")
@@ -64,7 +64,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  -h, --help\t\tShow this help message\n\n")
 		fmt.Fprintf(os.Stderr, "Examples:\n")
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k -m aa:bb:cc:dd:ee:ff -i 192.168.1.100 -n \"My Device\"\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  %s -m aa:bb:cc:dd:ee:ff -i 192.168.1.100 -n \"mydevice\" -k  # Uses %s\n", os.Args[0], envUDMIP)
+		fmt.Fprintf(os.Stderr, "  %s -m aa:bb:cc:dd:ee:ff -i 192.168.1.100 -n \"mydevice\" -k  # Uses %s\n", os.Args[0], envControllerIP)
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k -m aa:bb:cc:dd:ee:ff -i 192.168.1.100 -n \"My Device\" -N \"LAN\"\n", os.Args[0])
 	}
 
@@ -72,12 +72,12 @@ func main() {
 
 	// Check for host from environment variable if not provided
 	if *host == "" {
-		*host = os.Getenv(envUDMIP)
+		*host = os.Getenv(envControllerIP)
 	}
 
 	// Validate required parameters
 	if *host == "" {
-		exitError("--host is required (or set " + envUDMIP + " environment variable)")
+		exitError("--host is required (or set " + envControllerIP + " environment variable)")
 	}
 	if *mac == "" {
 		exitError("--mac is required")

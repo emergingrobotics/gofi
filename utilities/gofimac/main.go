@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	envUsername = "UNIFI_USERNAME"
-	envPassword = "UNIFI_PASSWORD"
-	envUDMIP    = "UNIFI_UDM_IP"
+	envUsername     = "UNIFI_USERNAME"
+	envPassword     = "UNIFI_PASSWORD"
+	envControllerIP = "UNIFI_CONTROLLER_IP"
 )
 
 // defaultGoneWindow is the history window used when --gone is given without a duration.
@@ -87,14 +87,14 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Output:\n")
 		fmt.Fprintf(os.Stderr, "  -j, --json\t\tOutput in JSON format\n\n")
 		fmt.Fprintf(os.Stderr, "Connection:\n")
-		fmt.Fprintf(os.Stderr, "  -H, --host string\tUDM Pro host address (or set %s)\n", envUDMIP)
+		fmt.Fprintf(os.Stderr, "  -H, --host string\tUDM Pro host address (or set %s)\n", envControllerIP)
 		fmt.Fprintf(os.Stderr, "  -p, --port int\tUDM Pro port (default 443)\n")
 		fmt.Fprintf(os.Stderr, "  -S, --site string\tSite name (default \"default\")\n")
 		fmt.Fprintf(os.Stderr, "  -k, --insecure\tSkip TLS certificate verification\n\n")
 		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
 		fmt.Fprintf(os.Stderr, "  %s\tUsername (required)\n", envUsername)
 		fmt.Fprintf(os.Stderr, "  %s\tPassword (required)\n", envPassword)
-		fmt.Fprintf(os.Stderr, "  %s\tUDM host (fallback for -H)\n\n", envUDMIP)
+		fmt.Fprintf(os.Stderr, "  %s\tUDM host (fallback for -H)\n\n", envControllerIP)
 		fmt.Fprintf(os.Stderr, "Examples:\n")
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k -w\n", os.Args[0])
@@ -157,10 +157,10 @@ func main() {
 
 	// Resolve host
 	if *host == "" {
-		*host = os.Getenv(envUDMIP)
+		*host = os.Getenv(envControllerIP)
 	}
 	if *host == "" {
-		exitError("--host is required (or set " + envUDMIP + ")")
+		exitError("--host is required (or set " + envControllerIP + ")")
 	}
 
 	// Credentials

@@ -146,7 +146,7 @@ Connection flags:
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
-| `--host` | `-H` | `$UNIFI_UDM_IP` | UDM Pro host address |
+| `--host` | `-H` | `$UNIFI_CONTROLLER_IP` | UDM Pro host address |
 | `--port` | `-p` | `443` | UDM Pro port |
 | `--site` | `-S` | `default` | UniFi site name |
 | `--insecure` | `-k` | `false` | Skip TLS certificate verification |
@@ -165,7 +165,7 @@ Connection flags:
 |----------|----------|-------------|
 | `UNIFI_USERNAME` | Yes | UDM authentication username |
 | `UNIFI_PASSWORD` | Yes | UDM authentication password |
-| `UNIFI_UDM_IP` | No | UDM host address (fallback if `-H` not given) |
+| `UNIFI_CONTROLLER_IP` | No | UDM host address (fallback if `-H` not given) |
 
 ### Behavior: `--get` Mode
 
@@ -378,7 +378,7 @@ Same as `gofips`:
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
-| `--host` | `-H` | `$UNIFI_UDM_IP` | UDM Pro host address |
+| `--host` | `-H` | `$UNIFI_CONTROLLER_IP` | UDM Pro host address |
 | `--port` | `-p` | `443` | UDM Pro port |
 | `--site` | `-S` | `default` | UniFi site name |
 | `--insecure` | `-k` | `false` | Skip TLS certificate verification |
@@ -389,7 +389,7 @@ Same as `gofips`:
 |----------|----------|-------------|
 | `UNIFI_USERNAME` | Yes | UDM authentication username |
 | `UNIFI_PASSWORD` | Yes | UDM authentication password |
-| `UNIFI_UDM_IP` | No | UDM host address (fallback if `-H` not given) |
+| `UNIFI_CONTROLLER_IP` | No | UDM host address (fallback if `-H` not given) |
 | `XDG_DATA_HOME` | No | Base directory for OUI data (default `~/.local/share`) |
 
 ### Text Output Format

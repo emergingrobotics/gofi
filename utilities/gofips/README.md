@@ -84,7 +84,7 @@ gofips -H 192.168.1.1 -k -s --dry-run hosts.conf
 |----------|----------|-------------|
 | `UNIFI_USERNAME` | Yes | UDM authentication username |
 | `UNIFI_PASSWORD` | Yes | UDM authentication password |
-| `UNIFI_UDM_IP` | No | UDM host address (fallback if `-H` not given) |
+| `UNIFI_CONTROLLER_IP` | No | UDM host address (fallback if `-H` not given) |
 
 ## Flags
 

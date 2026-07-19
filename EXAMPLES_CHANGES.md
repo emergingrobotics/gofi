@@ -4,15 +4,15 @@
 
 Updated three fixed IP management examples to:
 1. Automatically manage DNS records when adding/removing fixed IPs
-2. Support `UNIFI_UDM_IP` environment variable for controller host address
+2. Support `UNIFI_CONTROLLER_IP` environment variable for controller host address
 
 ## Modified Files
 
 ### 1. examples/addfixedip/main.go
 
 **Changes:**
-- Added `UNIFI_UDM_IP` environment variable support
-  - If `-H` flag not provided, checks for `UNIFI_UDM_IP` environment variable
+- Added `UNIFI_CONTROLLER_IP` environment variable support
+  - If `-H` flag not provided, checks for `UNIFI_CONTROLLER_IP` environment variable
   - Updated usage text to document this feature
   - Updated error message when host is missing
 
@@ -29,7 +29,7 @@ Updated three fixed IP management examples to:
 **Usage:**
 ```bash
 # With environment variable
-export UNIFI_UDM_IP=192.168.4.1
+export UNIFI_CONTROLLER_IP=192.168.4.1
 bin/examples/addfixedip -m aa:bb:cc:dd:ee:ff -i 192.168.4.35 -n wone -k
 
 # With flag (overrides environment)
@@ -49,8 +49,8 @@ Created fixed IP assignment:
 ### 2. examples/delfixedip/main.go
 
 **Changes:**
-- Added `UNIFI_UDM_IP` environment variable support
-  - If `-H` flag not provided, checks for `UNIFI_UDM_IP` environment variable
+- Added `UNIFI_CONTROLLER_IP` environment variable support
+  - If `-H` flag not provided, checks for `UNIFI_CONTROLLER_IP` environment variable
   - Updated usage text to document this feature
   - Updated error message when host is missing
   - Added example showing usage without `-H` flag
@@ -60,7 +60,7 @@ Created fixed IP assignment:
 **Usage:**
 ```bash
 # With environment variable
-export UNIFI_UDM_IP=192.168.4.1
+export UNIFI_CONTROLLER_IP=192.168.4.1
 bin/examples/delfixedip -m aa:bb:cc:dd:ee:ff -k
 
 # With flag (overrides environment)
@@ -70,8 +70,8 @@ bin/examples/delfixedip -H 192.168.4.1 -m aa:bb:cc:dd:ee:ff -k
 ### 3. examples/fixedips/main.go
 
 **Changes:**
-- Added `UNIFI_UDM_IP` environment variable support
-  - If `-H` flag not provided, checks for `UNIFI_UDM_IP` environment variable
+- Added `UNIFI_CONTROLLER_IP` environment variable support
+  - If `-H` flag not provided, checks for `UNIFI_CONTROLLER_IP` environment variable
   - Updated usage text to document this feature
   - Updated error message when host is missing
   - Added example showing usage without `-H` flag
@@ -79,7 +79,7 @@ bin/examples/delfixedip -H 192.168.4.1 -m aa:bb:cc:dd:ee:ff -k
 **Usage:**
 ```bash
 # With environment variable
-export UNIFI_UDM_IP=192.168.4.1
+export UNIFI_CONTROLLER_IP=192.168.4.1
 bin/examples/fixedips -k
 
 # With flag (overrides environment)
@@ -90,7 +90,7 @@ bin/examples/fixedips -H 192.168.4.1 -k
 
 All three examples follow this priority:
 1. Command line `-H` flag (highest priority)
-2. `UNIFI_UDM_IP` environment variable
+2. `UNIFI_CONTROLLER_IP` environment variable
 3. Error if neither provided
 
 This allows users to set a default host while still being able to override it per command.
@@ -134,7 +134,7 @@ Create a `.env` file:
 ```bash
 export UNIFI_USERNAME=admin
 export UNIFI_PASSWORD=your-password
-export UNIFI_UDM_IP=192.168.4.1
+export UNIFI_CONTROLLER_IP=192.168.4.1
 ```
 
 Source it before running examples:

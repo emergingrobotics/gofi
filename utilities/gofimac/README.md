@@ -114,7 +114,7 @@ The database is refreshed automatically if older than 30 days. If a download fai
 |----------|----------|-------------|
 | `UNIFI_USERNAME` | Yes | UDM authentication username |
 | `UNIFI_PASSWORD` | Yes | UDM authentication password |
-| `UNIFI_UDM_IP` | No | UDM host address (fallback if `-H` not given) |
+| `UNIFI_CONTROLLER_IP` | No | UDM host address (fallback if `-H` not given) |
 | `XDG_DATA_HOME` | No | Base directory for OUI data (default `~/.local/share`) |
 
 ## Flags
