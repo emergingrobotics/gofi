@@ -27,6 +27,7 @@ bin/
 /gofip
 /gofips
 /gofimac
+/gofinet
 
 # Go build artifacts
 *.o
