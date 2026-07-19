@@ -38,8 +38,8 @@ func (l *debugLogger) Error(msg string, keysAndValues ...interface{}) {
 func main() {
 	// Define command line flags
 	var (
-		host     = flag.String("host", "", "UDM Pro host address (required)")
-		port     = flag.Int("port", 443, "UDM Pro port")
+		host     = flag.String("host", "", "UniFi controller address (required)")
+		port     = flag.Int("port", 443, "UniFi controller port")
 		site     = flag.String("site", "default", "Site name")
 		insecure = flag.Bool("insecure", false, "Skip TLS certificate verification")
 		debug    = flag.Bool("debug", false, "Enable debug output")
@@ -47,8 +47,8 @@ func main() {
 	)
 
 	// Add short flag aliases
-	flag.StringVar(host, "H", "", "UDM Pro host address (shorthand)")
-	flag.IntVar(port, "p", 443, "UDM Pro port (shorthand)")
+	flag.StringVar(host, "H", "", "UniFi controller address (shorthand)")
+	flag.IntVar(port, "p", 443, "UniFi controller port (shorthand)")
 	flag.StringVar(site, "s", "default", "Site name (shorthand)")
 	flag.BoolVar(insecure, "k", false, "Skip TLS certificate verification (shorthand)")
 	flag.BoolVar(debug, "d", false, "Enable debug output (shorthand)")
@@ -63,8 +63,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  %s\tUsername for UDM authentication (required)\n", envUsername)
 		fmt.Fprintf(os.Stderr, "  %s\tPassword for UDM authentication (required)\n\n", envPassword)
 		fmt.Fprintf(os.Stderr, "Options:\n")
-		fmt.Fprintf(os.Stderr, "  -H, --host string\t\tUDM Pro host address (required)\n")
-		fmt.Fprintf(os.Stderr, "  -p, --port int\t\tUDM Pro port (default 443)\n")
+		fmt.Fprintf(os.Stderr, "  -H, --host string\t\tUniFi controller address (required)\n")
+		fmt.Fprintf(os.Stderr, "  -p, --port int\t\tUniFi controller port (default 443)\n")
 		fmt.Fprintf(os.Stderr, "  -s, --site string\t\tSite name (default \"default\")\n")
 		fmt.Fprintf(os.Stderr, "  -k, --insecure\t\tSkip TLS certificate verification\n")
 		fmt.Fprintf(os.Stderr, "  -d, --debug\t\t\tEnable debug output\n")

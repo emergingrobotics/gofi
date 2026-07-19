@@ -131,8 +131,8 @@ type SwitchIdentifier struct {
 func main() {
 	// Define command line flags
 	var (
-		host     = flag.String("host", "", "UDM Pro host address (required)")
-		port     = flag.Int("port", 443, "UDM Pro port")
+		host     = flag.String("host", "", "UniFi controller address (required)")
+		port     = flag.Int("port", 443, "UniFi controller port")
 		site     = flag.String("site", "default", "Site name")
 		insecure = flag.Bool("insecure", false, "Skip TLS certificate verification")
 		jsonOut  = flag.Bool("json", false, "Output in JSON format")
@@ -153,8 +153,8 @@ func main() {
 	)
 
 	// Add short flag aliases
-	flag.StringVar(host, "H", "", "UDM Pro host address (shorthand)")
-	flag.IntVar(port, "p", 443, "UDM Pro port (shorthand)")
+	flag.StringVar(host, "H", "", "UniFi controller address (shorthand)")
+	flag.IntVar(port, "p", 443, "UniFi controller port (shorthand)")
 	flag.StringVar(site, "s", "default", "Site name (shorthand)")
 	flag.BoolVar(insecure, "k", false, "Skip TLS certificate verification (shorthand)")
 	flag.BoolVar(jsonOut, "j", false, "Output in JSON format (shorthand)")
@@ -187,8 +187,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  %s               Username for UDM authentication (required)\n", envUsername)
 		fmt.Fprintf(os.Stderr, "  %s               Password for UDM authentication (required)\n\n", envPassword)
 		fmt.Fprintf(os.Stderr, "Options:\n")
-		fmt.Fprintf(os.Stderr, "  -H, --host <host>             UDM Pro host address (required)\n")
-		fmt.Fprintf(os.Stderr, "  -p, --port <port>             UDM Pro port (default 443)\n")
+		fmt.Fprintf(os.Stderr, "  -H, --host <host>             UniFi controller address (required)\n")
+		fmt.Fprintf(os.Stderr, "  -p, --port <port>             UniFi controller port (default 443)\n")
 		fmt.Fprintf(os.Stderr, "  -s, --site <site>             Site name (default \"default\")\n")
 		fmt.Fprintf(os.Stderr, "  -k, --insecure                Skip TLS certificate verification\n")
 		fmt.Fprintf(os.Stderr, "  -j, --json                    Output in JSON format\n")

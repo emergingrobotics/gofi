@@ -84,7 +84,7 @@ gofips -H 192.168.1.1 -k -s --dry-run hosts.conf
 |----------|----------|-------------|
 | `UNIFI_USERNAME` | Yes | UDM authentication username |
 | `UNIFI_PASSWORD` | Yes | UDM authentication password |
-| `UNIFI_CONTROLLER_IP` | No | UDM host address (fallback if `-H` not given) |
+| `UNIFI_CONTROLLER_IP` | No | UniFi controller address (fallback if `-H` not given) |
 
 ## Flags
 
@@ -97,8 +97,8 @@ gofips -H 192.168.1.1 -k -s --dry-run hosts.conf
 | `--name` | `-n` | Hostname identifier for `--del` |
 | `--mac` | `-m` | MAC address identifier for `--del` |
 | `--ip` | `-i` | IP address identifier for `--del` |
-| `--host` | `-H` | UDM Pro host address |
-| `--port` | `-p` | UDM Pro port (default 443) |
+| `--host` | `-H` | UniFi controller address |
+| `--port` | `-p` | UniFi controller port (default 443) |
 | `--site` | `-S` | UniFi site name (default "default") |
 | `--insecure` | `-k` | Skip TLS certificate verification |
 | `--force` | `-f` | Skip conflict checks |

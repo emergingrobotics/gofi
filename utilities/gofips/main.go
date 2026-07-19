@@ -21,8 +21,8 @@ const (
 
 func main() {
 	var (
-		host     = flag.String("host", "", "UDM Pro host address")
-		port     = flag.Int("port", 443, "UDM Pro port")
+		host     = flag.String("host", "", "UniFi controller address")
+		port     = flag.Int("port", 443, "UniFi controller port")
 		site     = flag.String("site", "default", "Site name")
 		insecure = flag.Bool("insecure", false, "Skip TLS certificate verification")
 		get      = flag.Bool("get", false, "Export fixed IP assignments to stdout in ISC DHCP format")
@@ -37,8 +37,8 @@ func main() {
 		dryRun   = flag.Bool("dry-run", false, "Show what would be done without making changes")
 	)
 
-	flag.StringVar(host, "H", "", "UDM Pro host address (shorthand)")
-	flag.IntVar(port, "p", 443, "UDM Pro port (shorthand)")
+	flag.StringVar(host, "H", "", "UniFi controller address (shorthand)")
+	flag.IntVar(port, "p", 443, "UniFi controller port (shorthand)")
 	flag.StringVar(site, "S", "default", "Site name (shorthand)")
 	flag.BoolVar(insecure, "k", false, "Skip TLS certificate verification (shorthand)")
 	flag.BoolVar(get, "g", false, "Export (shorthand)")
@@ -64,8 +64,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  -m, --mac string\tMAC address to delete\n")
 		fmt.Fprintf(os.Stderr, "  -i, --ip string\tIP address to delete\n\n")
 		fmt.Fprintf(os.Stderr, "Connection:\n")
-		fmt.Fprintf(os.Stderr, "  -H, --host string\tUDM Pro host address (or set %s)\n", envControllerIP)
-		fmt.Fprintf(os.Stderr, "  -p, --port int\tUDM Pro port (default 443)\n")
+		fmt.Fprintf(os.Stderr, "  -H, --host string\tUniFi controller address (or set %s)\n", envControllerIP)
+		fmt.Fprintf(os.Stderr, "  -p, --port int\tUniFi controller port (default 443)\n")
 		fmt.Fprintf(os.Stderr, "  -S, --site string\tSite name (default \"default\")\n")
 		fmt.Fprintf(os.Stderr, "  -k, --insecure\tSkip TLS certificate verification\n\n")
 		fmt.Fprintf(os.Stderr, "Other:\n")
@@ -75,7 +75,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
 		fmt.Fprintf(os.Stderr, "  %s\tUsername (required)\n", envUsername)
 		fmt.Fprintf(os.Stderr, "  %s\tPassword (required)\n", envPassword)
-		fmt.Fprintf(os.Stderr, "  %s\tUDM host (fallback for -H)\n\n", envControllerIP)
+		fmt.Fprintf(os.Stderr, "  %s\tUniFi controller (fallback for -H)\n\n", envControllerIP)
 		fmt.Fprintf(os.Stderr, "Examples:\n")
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k -g > hosts.conf\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k -s hosts.conf\n", os.Args[0])

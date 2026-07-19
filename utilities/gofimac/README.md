@@ -114,7 +114,7 @@ The database is refreshed automatically if older than 30 days. If a download fai
 |----------|----------|-------------|
 | `UNIFI_USERNAME` | Yes | UDM authentication username |
 | `UNIFI_PASSWORD` | Yes | UDM authentication password |
-| `UNIFI_CONTROLLER_IP` | No | UDM host address (fallback if `-H` not given) |
+| `UNIFI_CONTROLLER_IP` | No | UniFi controller address (fallback if `-H` not given) |
 | `XDG_DATA_HOME` | No | Base directory for OUI data (default `~/.local/share`) |
 
 ## Flags
@@ -129,8 +129,8 @@ The database is refreshed automatically if older than 30 days. If a download fai
 | `--sort` | | Sort order: `first-seen` (default), `last-seen`, or `ip` |
 | `--mac` | `-m` | Probe one MAC; exit 0 if present, 1 if gone/not found |
 | `--json` | `-j` | Output in JSON format |
-| `--host` | `-H` | UDM Pro host address |
-| `--port` | `-p` | UDM Pro port (default 443) |
+| `--host` | `-H` | UniFi controller address |
+| `--port` | `-p` | UniFi controller port (default 443) |
 | `--site` | `-S` | UniFi site name (default "default") |
 | `--insecure` | `-k` | Skip TLS certificate verification |
 

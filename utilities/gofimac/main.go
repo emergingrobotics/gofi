@@ -45,8 +45,8 @@ func (o *optionalDuration) IsBoolFlag() bool { return true }
 
 func main() {
 	var (
-		host     = flag.String("host", "", "UDM Pro host address")
-		port     = flag.Int("port", 443, "UDM Pro port")
+		host     = flag.String("host", "", "UniFi controller address")
+		port     = flag.Int("port", 443, "UniFi controller port")
 		site     = flag.String("site", "default", "Site name")
 		insecure = flag.Bool("insecure", false, "Skip TLS certificate verification")
 		wifi     = flag.Bool("wifi", false, "List only WiFi-connected clients")
@@ -62,8 +62,8 @@ func main() {
 	var gone optionalDuration
 	flag.Var(&gone, "gone", "Show only departed devices, optionally within a window (e.g. --gone=30d, default 7d)")
 
-	flag.StringVar(host, "H", "", "UDM Pro host address (shorthand)")
-	flag.IntVar(port, "p", 443, "UDM Pro port (shorthand)")
+	flag.StringVar(host, "H", "", "UniFi controller address (shorthand)")
+	flag.IntVar(port, "p", 443, "UniFi controller port (shorthand)")
 	flag.StringVar(site, "S", "default", "Site name (shorthand)")
 	flag.BoolVar(insecure, "k", false, "Skip TLS certificate verification (shorthand)")
 	flag.BoolVar(wifi, "w", false, "WiFi only (shorthand)")
@@ -87,14 +87,14 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Output:\n")
 		fmt.Fprintf(os.Stderr, "  -j, --json\t\tOutput in JSON format\n\n")
 		fmt.Fprintf(os.Stderr, "Connection:\n")
-		fmt.Fprintf(os.Stderr, "  -H, --host string\tUDM Pro host address (or set %s)\n", envControllerIP)
-		fmt.Fprintf(os.Stderr, "  -p, --port int\tUDM Pro port (default 443)\n")
+		fmt.Fprintf(os.Stderr, "  -H, --host string\tUniFi controller address (or set %s)\n", envControllerIP)
+		fmt.Fprintf(os.Stderr, "  -p, --port int\tUniFi controller port (default 443)\n")
 		fmt.Fprintf(os.Stderr, "  -S, --site string\tSite name (default \"default\")\n")
 		fmt.Fprintf(os.Stderr, "  -k, --insecure\tSkip TLS certificate verification\n\n")
 		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
 		fmt.Fprintf(os.Stderr, "  %s\tUsername (required)\n", envUsername)
 		fmt.Fprintf(os.Stderr, "  %s\tPassword (required)\n", envPassword)
-		fmt.Fprintf(os.Stderr, "  %s\tUDM host (fallback for -H)\n\n", envControllerIP)
+		fmt.Fprintf(os.Stderr, "  %s\tUniFi controller (fallback for -H)\n\n", envControllerIP)
 		fmt.Fprintf(os.Stderr, "Examples:\n")
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k -w\n", os.Args[0])
