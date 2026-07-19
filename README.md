@@ -27,7 +27,7 @@ Manages fixed IP (DHCP reservation) assignments **with hostnames and DNS records
 **Export current assignments** (dump to disk, edit, push back):
 
 ```bash
-gofips -H 192.168.1.1 -k --get > hosts.conf
+gofips -H 192.168.1.1 --get > hosts.conf
 ```
 
 Assignments are emitted sorted by IP address in ISC DHCP format, where the `host <name>` label is the DNS name:
@@ -50,8 +50,8 @@ host printer {
 **Import (bulk provision) from a file or stdin:**
 
 ```bash
-gofips -H 192.168.1.1 -k --set hosts.conf
-cat hosts.conf | gofips -H 192.168.1.1 -k --set
+gofips -H 192.168.1.1 --set hosts.conf
+cat hosts.conf | gofips -H 192.168.1.1 --set
 ```
 
 The input is fully validated before any changes are made; unchanged entries are skipped and the network for each IP is auto-detected from configured subnets. Add `--dry-run` to preview changes without applying them.
@@ -59,8 +59,8 @@ The input is fully validated before any changes are made; unchanged entries are 
 **Add or delete a single host:**
 
 ```bash
-gofips -H 192.168.1.1 -k --add 'host mydev { hardware ethernet aa:bb:cc:dd:ee:ff; fixed-address 192.168.1.50; }'
-gofips -H 192.168.1.1 -k --del --name mydev   # or --mac / --ip
+gofips -H 192.168.1.1 --add 'host mydev { hardware ethernet aa:bb:cc:dd:ee:ff; fixed-address 192.168.1.50; }'
+gofips -H 192.168.1.1 --del --name mydev   # or --mac / --ip
 ```
 
 | Flag | Short | Description |
@@ -75,7 +75,7 @@ gofips -H 192.168.1.1 -k --del --name mydev   # or --mac / --ip
 | `--host` | `-H` | UDM Pro host address (or set `UNIFI_CONTROLLER_IP`) |
 | `--port` | `-p` | Port (default: 443) |
 | `--site` | `-S` | Site name (default: "default") |
-| `--insecure` | `-k` | Skip TLS certificate verification |
+| `--secure` | `-k` | Enforce TLS certificate verification (default: accept self-signed) |
 
 See [utilities/gofips/README.md](./utilities/gofips/README.md) and [utilities/docs/gofips/DESIGN.md](./utilities/docs/gofips/DESIGN.md) for details.
 
@@ -84,10 +84,10 @@ See [utilities/gofips/README.md](./utilities/gofips/README.md) and [utilities/do
 Lists connected clients (wired, WiFi, or all) with manufacturer identification looked up independently from the IEEE OUI database rather than relying on the UDM's built-in fingerprinting.
 
 ```bash
-gofimac -H 192.168.1.1 -k          # all connected clients (default)
-gofimac -H 192.168.1.1 -k --wifi   # WiFi clients only
-gofimac -H 192.168.1.1 -k --wired  # wired clients only
-gofimac -H 192.168.1.1 -k --json   # JSON output
+gofimac -H 192.168.1.1  # all connected clients (default)
+gofimac -H 192.168.1.1 --wifi   # WiFi clients only
+gofimac -H 192.168.1.1 --wired  # wired clients only
+gofimac -H 192.168.1.1 --json   # JSON output
 ```
 
 Text output is tab-separated (MAC, IP, hostname, manufacturer), sorted by IP:
@@ -108,7 +108,7 @@ The IEEE OUI database is downloaded and cached under `$XDG_DATA_HOME/gofimac/` (
 | `--host` | `-H` | UDM Pro host address (or set `UNIFI_CONTROLLER_IP`) |
 | `--port` | `-p` | Port (default: 443) |
 | `--site` | `-S` | Site name (default: "default") |
-| `--insecure` | `-k` | Skip TLS certificate verification |
+| `--secure` | `-k` | Enforce TLS certificate verification (default: accept self-signed) |
 
 See [utilities/gofimac/README.md](./utilities/gofimac/README.md) and [utilities/docs/gofimac/DESIGN.md](./utilities/docs/gofimac/DESIGN.md) for details.
 

@@ -48,7 +48,7 @@ func main() {
 		host     = flag.String("host", "", "UniFi controller address")
 		port     = flag.Int("port", 443, "UniFi controller port")
 		site     = flag.String("site", "default", "Site name")
-		insecure = flag.Bool("insecure", false, "Skip TLS certificate verification")
+		secure   = flag.Bool("secure", false, "Enforce TLS certificate verification")
 		wifi     = flag.Bool("wifi", false, "List only WiFi-connected clients")
 		wired    = flag.Bool("wired", false, "List only wired (ethernet) clients")
 		all      = flag.Bool("all", false, "List all connected clients (default)")
@@ -65,7 +65,7 @@ func main() {
 	flag.StringVar(host, "H", "", "UniFi controller address (shorthand)")
 	flag.IntVar(port, "p", 443, "UniFi controller port (shorthand)")
 	flag.StringVar(site, "S", "default", "Site name (shorthand)")
-	flag.BoolVar(insecure, "k", false, "Skip TLS certificate verification (shorthand)")
+	flag.BoolVar(secure, "k", false, "Enforce TLS certificate verification (shorthand)")
 	flag.BoolVar(wifi, "w", false, "WiFi only (shorthand)")
 	flag.BoolVar(wired, "e", false, "Wired only (shorthand)")
 	flag.BoolVar(all, "a", false, "All clients (shorthand)")
@@ -90,7 +90,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  -H, --host string\tUniFi controller address (or set %s)\n", envControllerIP)
 		fmt.Fprintf(os.Stderr, "  -p, --port int\tUniFi controller port (default 443)\n")
 		fmt.Fprintf(os.Stderr, "  -S, --site string\tSite name (default \"default\")\n")
-		fmt.Fprintf(os.Stderr, "  -k, --insecure\tSkip TLS certificate verification\n\n")
+		fmt.Fprintf(os.Stderr, "  -k, --secure\tEnforce TLS certificate verification (default: accept self-signed)\n\n")
 		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
 		fmt.Fprintf(os.Stderr, "  %s\tUsername (required)\n", envUsername)
 		fmt.Fprintf(os.Stderr, "  %s\tPassword (required)\n", envPassword)
@@ -186,7 +186,7 @@ func main() {
 		Username:      username,
 		Password:      password,
 		Site:          *site,
-		SkipTLSVerify: *insecure,
+		SkipTLSVerify: !*secure,
 	}
 
 	apiClient, err := gofi.New(config)

@@ -149,7 +149,7 @@ Connection flags:
 | `--host` | `-H` | `$UNIFI_CONTROLLER_IP` | UDM Pro host address |
 | `--port` | `-p` | `443` | UDM Pro port |
 | `--site` | `-S` | `default` | UniFi site name |
-| `--insecure` | `-k` | `false` | Skip TLS certificate verification |
+| `--secure` | `-k` | `false` | Enforce TLS certificate verification (default: accept self-signed) |
 
 ### Other Flags
 
@@ -381,7 +381,7 @@ Same as `gofips`:
 | `--host` | `-H` | `$UNIFI_CONTROLLER_IP` | UDM Pro host address |
 | `--port` | `-p` | `443` | UDM Pro port |
 | `--site` | `-S` | `default` | UniFi site name |
-| `--insecure` | `-k` | `false` | Skip TLS certificate verification |
+| `--secure` | `-k` | `false` | Enforce TLS certificate verification (default: accept self-signed) |
 
 ### Environment Variables
 

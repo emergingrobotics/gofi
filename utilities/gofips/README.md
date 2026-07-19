@@ -19,7 +19,7 @@ The binary is built to `bin/gofips`.
 ### Export assignments
 
 ```bash
-gofips -H 192.168.1.1 -k -g > hosts.conf
+gofips -H 192.168.1.1 -g > hosts.conf
 ```
 
 Exports all fixed IP assignments with hostnames to stdout in ISC DHCP format:
@@ -43,13 +43,13 @@ host printer {
 ### Import assignments
 
 ```bash
-gofips -H 192.168.1.1 -k -s hosts.conf
+gofips -H 192.168.1.1 -s hosts.conf
 ```
 
 Or from stdin:
 
 ```bash
-cat hosts.conf | gofips -H 192.168.1.1 -k -s
+cat hosts.conf | gofips -H 192.168.1.1 -s
 ```
 
 Parses all `host {}` blocks, validates them, then creates or updates each entry on the UDM. Unchanged entries are skipped.
@@ -57,15 +57,15 @@ Parses all `host {}` blocks, validates them, then creates or updates each entry 
 ### Add a single host
 
 ```bash
-gofips -H 192.168.1.1 -k -a 'host mydevice { hardware ethernet aa:bb:cc:dd:ee:ff; fixed-address 192.168.1.50; }'
+gofips -H 192.168.1.1 -a 'host mydevice { hardware ethernet aa:bb:cc:dd:ee:ff; fixed-address 192.168.1.50; }'
 ```
 
 ### Delete a host
 
 ```bash
-gofips -H 192.168.1.1 -k -d -n mydevice      # by hostname
-gofips -H 192.168.1.1 -k -d -m aa:bb:cc:dd:ee:ff  # by MAC
-gofips -H 192.168.1.1 -k -d -i 192.168.1.50   # by IP
+gofips -H 192.168.1.1 -d -n mydevice      # by hostname
+gofips -H 192.168.1.1 -d -m aa:bb:cc:dd:ee:ff  # by MAC
+gofips -H 192.168.1.1 -d -i 192.168.1.50   # by IP
 ```
 
 Use `--keep-dns` to preserve DNS records when deleting. Use `--force` to delete the user record entirely rather than just clearing the fixed IP.
@@ -75,7 +75,7 @@ Use `--keep-dns` to preserve DNS records when deleting. Use `--force` to delete 
 Add `--dry-run` to `--set` to preview changes without modifying the UDM:
 
 ```bash
-gofips -H 192.168.1.1 -k -s --dry-run hosts.conf
+gofips -H 192.168.1.1 -s --dry-run hosts.conf
 ```
 
 ## Environment Variables
@@ -100,7 +100,7 @@ gofips -H 192.168.1.1 -k -s --dry-run hosts.conf
 | `--host` | `-H` | UniFi controller address |
 | `--port` | `-p` | UniFi controller port (default 443) |
 | `--site` | `-S` | UniFi site name (default "default") |
-| `--insecure` | `-k` | Skip TLS certificate verification |
+| `--secure` | `-k` | Enforce TLS certificate verification (default: accept self-signed) |
 | `--force` | `-f` | Skip conflict checks |
 | `--keep-dns` | `-K` | Preserve DNS records on delete |
 | `--dry-run` | | Preview changes without applying |

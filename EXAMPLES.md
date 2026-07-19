@@ -33,7 +33,7 @@ Most examples support these flags:
 | `--host` | `-H` | UDM Pro host address | (required) |
 | `--port` | `-p` | UDM Pro port | 443 |
 | `--site` | `-s` | Site name | default |
-| `--insecure` | `-k` | Skip TLS verification | false |
+| `--secure` | `-k` | Enforce TLS verification (default: accept self-signed) | false |
 | `--json` | `-j` | Output in JSON format | false |
 | `--debug` | `-d` | Enable debug logging | false |
 
@@ -55,10 +55,10 @@ Basic example demonstrating core gofi functionality. Lists sites, devices, netwo
 
 **Usage**:
 ```bash
-./bin/basic --host 192.168.1.1 --insecure
+./bin/basic --host 192.168.1.1
 
 # With debug logging
-./bin/basic --host 192.168.1.1 --insecure --debug
+./bin/basic --host 192.168.1.1 --debug
 
 # Different site
 ./bin/basic --host 192.168.1.1 --site production
@@ -106,13 +106,13 @@ Lists all networks from the controller with detailed information in table or JSO
 **Usage**:
 ```bash
 # Table format
-./bin/list --host 192.168.1.1 --insecure
+./bin/list --host 192.168.1.1
 
 # JSON format
-./bin/list --host 192.168.1.1 --insecure --json
+./bin/list --host 192.168.1.1 --json
 
 # JSON with jq filtering
-./bin/list -H 192.168.1.1 -k -j | jq '.[] | select(.vlan_enabled==true)'
+./bin/list -H 192.168.1.1 -j | jq '.[] | select(.vlan_enabled==true)'
 ```
 
 **Output** (table):
@@ -328,16 +328,16 @@ Lists all clients with fixed IP address assignments.
 **Usage**:
 ```bash
 # Table format
-./bin/fixedips --host 192.168.1.1 --insecure
+./bin/fixedips --host 192.168.1.1
 
 # JSON format
-./bin/fixedips -H 192.168.1.1 -k -j
+./bin/fixedips -H 192.168.1.1 -j
 
 # Different site
-./bin/fixedips -H 192.168.1.1 -k --site office
+./bin/fixedips -H 192.168.1.1 --site office
 
 # JSON with jq
-./bin/fixedips -H 192.168.1.1 -k -j | jq '.[] | select(.fixed_ip | startswith("192.168.1"))'
+./bin/fixedips -H 192.168.1.1 -j | jq '.[] | select(.fixed_ip | startswith("192.168.1"))'
 ```
 
 **Output** (table):
@@ -372,14 +372,13 @@ Assigns a fixed IP address to a device by MAC address.
 # Basic usage - auto-detect network
 ./bin/addfixedip \
   --host 192.168.1.1 \
-  --insecure \
   --mac aa:bb:cc:dd:ee:ff \
   --ip 192.168.1.100 \
   --name "My Device"
 
 # Specify network explicitly
 ./bin/addfixedip \
-  -H 192.168.1.1 -k \
+  -H 192.168.1.1 \
   -m aa:bb:cc:dd:ee:ff \
   -i 192.168.1.100 \
   -n "My Device" \
@@ -387,7 +386,7 @@ Assigns a fixed IP address to a device by MAC address.
 
 # Force assignment (skip conflict checks)
 ./bin/addfixedip \
-  -H 192.168.1.1 -k \
+  -H 192.168.1.1 \
   -m aa:bb:cc:dd:ee:ff \
   -i 192.168.1.100 \
   -n "My Device" \
@@ -427,16 +426,16 @@ Removes fixed IP assignments, allowing devices to use DHCP. Handles dependent DN
 **Usage**:
 ```bash
 # Remove fixed IP by MAC (clears fixed IP, keeps user)
-./bin/delfixedip --host 192.168.1.1 --insecure --mac aa:bb:cc:dd:ee:ff
+./bin/delfixedip --host 192.168.1.1 --mac aa:bb:cc:dd:ee:ff
 
 # Remove fixed IP by IP address
-./bin/delfixedip -H 192.168.1.1 -k -i 192.168.1.100
+./bin/delfixedip -H 192.168.1.1 -i 192.168.1.100
 
 # Keep associated DNS records
-./bin/delfixedip -H 192.168.1.1 -k -m aa:bb:cc:dd:ee:ff --keep-dns
+./bin/delfixedip -H 192.168.1.1 -m aa:bb:cc:dd:ee:ff --keep-dns
 
 # Delete the entire user entry (not just fixed IP)
-./bin/delfixedip -H 192.168.1.1 -k -m aa:bb:cc:dd:ee:ff --delete
+./bin/delfixedip -H 192.168.1.1 -m aa:bb:cc:dd:ee:ff --delete
 ```
 
 **Output**:
@@ -483,7 +482,7 @@ Comprehensive switch management including listing and PoE port control.
 
 ```bash
 # Table format
-./bin/switches --host 192.168.1.1 --list --insecure
+./bin/switches --host 192.168.1.1 --list
 
 # JSON format with full port details
 ./bin/switches -H 192.168.1.1 -l -j
@@ -508,14 +507,13 @@ Total: 2 switch(es)
 # Enable PoE on port 5
 ./bin/switches \
   --host 192.168.1.1 \
-  --insecure \
   --poe enable \
   --switch "OfficeSW" \
   --port-num 5
 
 # Disable PoE with confirmation wait
 ./bin/switches \
-  -H 192.168.1.1 -k \
+  -H 192.168.1.1 \
   -P disable \
   -S "OfficeSW" \
   -n 5 \
@@ -523,14 +521,14 @@ Total: 2 switch(es)
 
 # Power cycle a port (500ms default)
 ./bin/switches \
-  -H 192.168.1.1 -k \
+  -H 192.168.1.1 \
   -P cycle \
   -S "OfficeSW" \
   -n 5
 
 # Power cycle with custom duration
 ./bin/switches \
-  -H 192.168.1.1 -k \
+  -H 192.168.1.1 \
   -P cycle \
   -S "OfficeSW" \
   -n 5 \
@@ -538,7 +536,7 @@ Total: 2 switch(es)
 
 # Enable PoE by switch MAC address
 ./bin/switches \
-  -H 192.168.1.1 -k \
+  -H 192.168.1.1 \
   -P enable \
   -S "aa:bb:cc:dd:ee:10" \
   -n 6 \
@@ -547,7 +545,7 @@ Total: 2 switch(es)
 
 # JSON output
 ./bin/switches \
-  -H 192.168.1.1 -k \
+  -H 192.168.1.1 \
   -P enable \
   -S "OfficeSW" \
   -n 5 \
@@ -701,7 +699,7 @@ Load it before running examples:
 
 ```bash
 source .env
-./bin/basic --host 192.168.1.1 --insecure
+./bin/basic --host 192.168.1.1
 ```
 
 Or use direnv with `.envrc`:
@@ -713,7 +711,7 @@ export UNIFI_PASSWORD=your-secure-password
 
 ## Production Usage Notes
 
-1. **TLS Verification**: Don't use `--insecure` in production. Use valid certificates.
+1. **TLS Verification**: The tools accept self-signed certificates by default (the UDM ships with one). In production with valid certificates, pass `-k`/`--secure` to enforce certificate verification.
 
 2. **Credentials**: Never hardcode credentials. Use environment variables or secret management.
 
@@ -743,7 +741,7 @@ export UNIFI_PASSWORD=your-secure-password
 
 ```bash
 # Enable debug logging to see HTTP requests
-./bin/basic --host 192.168.1.1 --insecure --debug
+./bin/basic --host 192.168.1.1 --debug
 ```
 
 ### Authentication Failures
@@ -756,12 +754,13 @@ echo "Password: [hidden]"
 
 ### TLS Errors
 
-Use `--insecure` for self-signed certificates:
+Self-signed certificates are accepted by default:
 ```bash
-./bin/basic --host 192.168.1.1 --insecure
+./bin/basic --host 192.168.1.1
 ```
 
-Or install the controller's certificate in your system trust store.
+If you pass `-k`/`--secure` to enforce verification and hit a certificate error,
+install the controller's certificate in your system trust store (or drop `-k`).
 
 ### Timeout Issues
 

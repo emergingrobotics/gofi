@@ -15,7 +15,7 @@ UniFi creating a DNS record doesn't automatically make it resolvable on your sys
 Check that the record exists:
 ```bash
 # List all DNS records
-bin/examples/fixedips -k
+bin/examples/fixedips
 
 # Or create a simple test
 curl -k "https://192.168.4.1/proxy/network/v2/api/site/default/static-dns" \
@@ -204,7 +204,7 @@ After following the steps above, verify everything works:
 
 ```bash
 # 1. DNS record exists in UniFi
-bin/examples/addfixedip -H 192.168.4.1 -m 20:05:b7:01:00:20 -i 192.168.4.35 -n wone -k
+bin/examples/addfixedip -H 192.168.4.1 -m 20:05:b7:01:00:20 -i 192.168.4.35 -n wone
 # Should show: DNS: wone -> 192.168.4.35
 
 # 2. UniFi resolves it
@@ -227,7 +227,7 @@ If you can't change system DNS, use fully qualified domain names:
 1. Set domain in UniFi to "home" or "lan"
 2. Add to fixed IP:
    ```bash
-   bin/examples/addfixedip -H 192.168.4.1 -m 20:05:b7:01:00:20 -i 192.168.4.35 -n wone -k
+   bin/examples/addfixedip -H 192.168.4.1 -m 20:05:b7:01:00:20 -i 192.168.4.35 -n wone
    ```
 3. Use FQDN:
    ```bash

@@ -21,26 +21,26 @@ const (
 
 func main() {
 	var (
-		host     = flag.String("host", "", "UniFi controller address")
-		port     = flag.Int("port", 443, "UniFi controller port")
-		site     = flag.String("site", "default", "Site name")
-		insecure = flag.Bool("insecure", false, "Skip TLS certificate verification")
-		get      = flag.Bool("get", false, "Export fixed IP assignments to stdout in ISC DHCP format")
-		set      = flag.Bool("set", false, "Import host declarations from file or stdin")
-		add      = flag.Bool("add", false, "Add a single host from ISC DHCP declaration")
-		del      = flag.Bool("del", false, "Delete a host by name, MAC, or IP")
-		name     = flag.String("name", "", "Hostname for --del")
-		mac      = flag.String("mac", "", "MAC address for --del")
-		ip       = flag.String("ip", "", "IP address for --del")
-		force    = flag.Bool("force", false, "Skip conflict checks; force delete")
-		keepDNS  = flag.Bool("keep-dns", false, "Do not delete associated DNS records")
-		dryRun   = flag.Bool("dry-run", false, "Show what would be done without making changes")
+		host    = flag.String("host", "", "UniFi controller address")
+		port    = flag.Int("port", 443, "UniFi controller port")
+		site    = flag.String("site", "default", "Site name")
+		secure  = flag.Bool("secure", false, "Enforce TLS certificate verification")
+		get     = flag.Bool("get", false, "Export fixed IP assignments to stdout in ISC DHCP format")
+		set     = flag.Bool("set", false, "Import host declarations from file or stdin")
+		add     = flag.Bool("add", false, "Add a single host from ISC DHCP declaration")
+		del     = flag.Bool("del", false, "Delete a host by name, MAC, or IP")
+		name    = flag.String("name", "", "Hostname for --del")
+		mac     = flag.String("mac", "", "MAC address for --del")
+		ip      = flag.String("ip", "", "IP address for --del")
+		force   = flag.Bool("force", false, "Skip conflict checks; force delete")
+		keepDNS = flag.Bool("keep-dns", false, "Do not delete associated DNS records")
+		dryRun  = flag.Bool("dry-run", false, "Show what would be done without making changes")
 	)
 
 	flag.StringVar(host, "H", "", "UniFi controller address (shorthand)")
 	flag.IntVar(port, "p", 443, "UniFi controller port (shorthand)")
 	flag.StringVar(site, "S", "default", "Site name (shorthand)")
-	flag.BoolVar(insecure, "k", false, "Skip TLS certificate verification (shorthand)")
+	flag.BoolVar(secure, "k", false, "Enforce TLS certificate verification (shorthand)")
 	flag.BoolVar(get, "g", false, "Export (shorthand)")
 	flag.BoolVar(set, "s", false, "Import (shorthand)")
 	flag.BoolVar(add, "a", false, "Add (shorthand)")
@@ -67,7 +67,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  -H, --host string\tUniFi controller address (or set %s)\n", envControllerIP)
 		fmt.Fprintf(os.Stderr, "  -p, --port int\tUniFi controller port (default 443)\n")
 		fmt.Fprintf(os.Stderr, "  -S, --site string\tSite name (default \"default\")\n")
-		fmt.Fprintf(os.Stderr, "  -k, --insecure\tSkip TLS certificate verification\n\n")
+		fmt.Fprintf(os.Stderr, "  -k, --secure\tEnforce TLS certificate verification (default: accept self-signed)\n\n")
 		fmt.Fprintf(os.Stderr, "Other:\n")
 		fmt.Fprintf(os.Stderr, "  -f, --force\t\tSkip conflict checks; with --set, re-process unchanged entries\n")
 		fmt.Fprintf(os.Stderr, "  -K, --keep-dns\tDo not delete DNS records on delete\n")
@@ -178,7 +178,7 @@ func main() {
 		Username:      username,
 		Password:      password,
 		Site:          *site,
-		SkipTLSVerify: *insecure,
+		SkipTLSVerify: !*secure,
 	}
 
 	client, err := gofi.New(config)

@@ -28,17 +28,17 @@ type FixedIPEntry struct {
 
 func main() {
 	var (
-		host     = flag.String("host", "", "UniFi controller address (required)")
-		port     = flag.Int("port", 443, "UniFi controller port")
-		site     = flag.String("site", "default", "Site name")
-		insecure = flag.Bool("insecure", false, "Skip TLS certificate verification")
-		jsonOut  = flag.Bool("json", false, "Output in JSON format")
+		host    = flag.String("host", "", "UniFi controller address (required)")
+		port    = flag.Int("port", 443, "UniFi controller port")
+		site    = flag.String("site", "default", "Site name")
+		secure  = flag.Bool("secure", false, "Enforce TLS certificate verification")
+		jsonOut = flag.Bool("json", false, "Output in JSON format")
 	)
 
 	flag.StringVar(host, "H", "", "UniFi controller address (shorthand)")
 	flag.IntVar(port, "p", 443, "UniFi controller port (shorthand)")
 	flag.StringVar(site, "s", "default", "Site name (shorthand)")
-	flag.BoolVar(insecure, "k", false, "Skip TLS certificate verification (shorthand)")
+	flag.BoolVar(secure, "k", false, "Enforce TLS certificate verification (shorthand)")
 	flag.BoolVar(jsonOut, "j", false, "Output in JSON format (shorthand)")
 
 	flag.Usage = func() {
@@ -52,7 +52,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  -H, --host string\tUniFi controller address (required unless %s is set)\n", envControllerIP)
 		fmt.Fprintf(os.Stderr, "  -p, --port int\tUniFi controller port (default 443)\n")
 		fmt.Fprintf(os.Stderr, "  -s, --site string\tSite name (default \"default\")\n")
-		fmt.Fprintf(os.Stderr, "  -k, --insecure\tSkip TLS certificate verification\n")
+		fmt.Fprintf(os.Stderr, "  -k, --secure\tEnforce TLS certificate verification\n")
 		fmt.Fprintf(os.Stderr, "  -j, --json\t\tOutput in JSON format\n")
 		fmt.Fprintf(os.Stderr, "  -h, --help\t\tShow this help message\n\n")
 		fmt.Fprintf(os.Stderr, "Examples:\n")
@@ -94,7 +94,7 @@ func main() {
 		Username:      username,
 		Password:      password,
 		Site:          *site,
-		SkipTLSVerify: *insecure,
+		SkipTLSVerify: !*secure,
 	}
 
 	client, err := gofi.New(config)

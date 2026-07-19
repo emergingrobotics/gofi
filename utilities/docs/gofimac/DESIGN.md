@@ -407,7 +407,7 @@ utilities/
 ### Phase 3: Main + Integration (main.go)
 - Flag parsing and validation (pflag or standard flag).
 - Mode default to `--all`.
-- Connection flag handling (host, port, site, insecure).
+- Connection flag handling (host, port, site, secure).
 - Credential validation.
 - Call `EnsureFresh()` for OUI database.
 - Create gofi client, connect, defer disconnect.

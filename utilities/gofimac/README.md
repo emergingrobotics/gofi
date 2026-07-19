@@ -21,32 +21,32 @@ The binary is built to `bin/gofimac`.
 ### List all clients
 
 ```bash
-gofimac -H 192.168.1.1 -k
+gofimac -H 192.168.1.1
 ```
 
 ### List WiFi clients only
 
 ```bash
-gofimac -H 192.168.1.1 -k -w
+gofimac -H 192.168.1.1 -w
 ```
 
 ### List wired clients only
 
 ```bash
-gofimac -H 192.168.1.1 -k -e
+gofimac -H 192.168.1.1 -e
 ```
 
 ### Recently departed devices
 
 ```bash
-gofimac -H 192.168.1.1 -k --gone         # departed within the default 7-day window
-gofimac -H 192.168.1.1 -k --gone=30d     # departed within the last 30 days
+gofimac -H 192.168.1.1 --gone         # departed within the default 7-day window
+gofimac -H 192.168.1.1 --gone=30d     # departed within the last 30 days
 ```
 
 ### Devices seen in a window (present and gone)
 
 ```bash
-gofimac -H 192.168.1.1 -k --since 7d     # everything seen in the last 7 days, marked present/gone
+gofimac -H 192.168.1.1 --since 7d     # everything seen in the last 7 days, marked present/gone
 ```
 
 ### Probe a single MAC
@@ -56,7 +56,7 @@ Check whether one device is on the network right now. Exit code is `0` if presen
 tools, this asks the UDM, so it works across VLANs/subnets.
 
 ```bash
-gofimac -H 192.168.1.1 -k --mac aa:bb:cc:dd:ee:ff   # or -m
+gofimac -H 192.168.1.1 --mac aa:bb:cc:dd:ee:ff   # or -m
 ```
 
 ```
@@ -71,8 +71,8 @@ use the `make mac-ping MAC=<mac>` target at the repo root.
 ### Sorting
 
 ```bash
-gofimac -H 192.168.1.1 -k --sort ip          # numeric IP order (the pre-history default)
-gofimac -H 192.168.1.1 -k --sort last-seen   # most recently seen first
+gofimac -H 192.168.1.1 --sort ip          # numeric IP order (the pre-history default)
+gofimac -H 192.168.1.1 --sort last-seen   # most recently seen first
 ```
 
 Default sort is `first-seen` descending (newest devices on top).
@@ -80,9 +80,9 @@ Default sort is `first-seen` descending (newest devices on top).
 ### JSON output
 
 ```bash
-gofimac -H 192.168.1.1 -k -j
-gofimac -H 192.168.1.1 -k -w -j
-gofimac -H 192.168.1.1 -k --gone=30d -j
+gofimac -H 192.168.1.1 -j
+gofimac -H 192.168.1.1 -w -j
+gofimac -H 192.168.1.1 --gone=30d -j
 ```
 
 ### Text output format
@@ -132,7 +132,7 @@ The database is refreshed automatically if older than 30 days. If a download fai
 | `--host` | `-H` | UniFi controller address |
 | `--port` | `-p` | UniFi controller port (default 443) |
 | `--site` | `-S` | UniFi site name (default "default") |
-| `--insecure` | `-k` | Skip TLS certificate verification |
+| `--secure` | `-k` | Enforce TLS certificate verification (default: accept self-signed) |
 
 `--since`, `--gone`, and `--mac` are mutually exclusive. Duration values accept `s`, `m`, `h`,
 `d`, `w`, and `mo` units and may be compound (e.g. `1w2d`). Because `--gone` takes an

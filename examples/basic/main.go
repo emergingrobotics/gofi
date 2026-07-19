@@ -38,19 +38,19 @@ func (l *debugLogger) Error(msg string, keysAndValues ...interface{}) {
 func main() {
 	// Define command line flags
 	var (
-		host     = flag.String("host", "", "UniFi controller address (required)")
-		port     = flag.Int("port", 443, "UniFi controller port")
-		site     = flag.String("site", "default", "Site name")
-		insecure = flag.Bool("insecure", false, "Skip TLS certificate verification")
-		debug    = flag.Bool("debug", false, "Enable debug output")
-		timeout  = flag.Duration("timeout", 30*time.Second, "Connection timeout")
+		host    = flag.String("host", "", "UniFi controller address (required)")
+		port    = flag.Int("port", 443, "UniFi controller port")
+		site    = flag.String("site", "default", "Site name")
+		secure  = flag.Bool("secure", false, "Enforce TLS certificate verification")
+		debug   = flag.Bool("debug", false, "Enable debug output")
+		timeout = flag.Duration("timeout", 30*time.Second, "Connection timeout")
 	)
 
 	// Add short flag aliases
 	flag.StringVar(host, "H", "", "UniFi controller address (shorthand)")
 	flag.IntVar(port, "p", 443, "UniFi controller port (shorthand)")
 	flag.StringVar(site, "s", "default", "Site name (shorthand)")
-	flag.BoolVar(insecure, "k", false, "Skip TLS certificate verification (shorthand)")
+	flag.BoolVar(secure, "k", false, "Enforce TLS certificate verification (shorthand)")
 	flag.BoolVar(debug, "d", false, "Enable debug output (shorthand)")
 	flag.DurationVar(timeout, "t", 30*time.Second, "Connection timeout (shorthand)")
 
@@ -66,7 +66,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  -H, --host string\t\tUniFi controller address (required)\n")
 		fmt.Fprintf(os.Stderr, "  -p, --port int\t\tUniFi controller port (default 443)\n")
 		fmt.Fprintf(os.Stderr, "  -s, --site string\t\tSite name (default \"default\")\n")
-		fmt.Fprintf(os.Stderr, "  -k, --insecure\t\tSkip TLS certificate verification\n")
+		fmt.Fprintf(os.Stderr, "  -k, --secure\t\tEnforce TLS certificate verification\n")
 		fmt.Fprintf(os.Stderr, "  -d, --debug\t\t\tEnable debug output\n")
 		fmt.Fprintf(os.Stderr, "  -t, --timeout duration\tConnection timeout (default 30s)\n")
 		fmt.Fprintf(os.Stderr, "  -h, --help\t\t\tShow this help message\n\n")
@@ -109,7 +109,7 @@ func main() {
 		Username:      username,
 		Password:      password,
 		Site:          *site,
-		SkipTLSVerify: *insecure,
+		SkipTLSVerify: !*secure,
 		Timeout:       *timeout,
 	}
 
