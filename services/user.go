@@ -130,7 +130,7 @@ func (s *userService) Update(ctx context.Context, site string, user *types.User)
 	}
 
 	if !resp.IsSuccess() {
-		return nil, fmt.Errorf("update user failed with status %d", resp.StatusCode)
+		return nil, fmt.Errorf("update user failed with status %d: %s", resp.StatusCode, string(resp.Body))
 	}
 
 	apiResp, err := internal.ParseAPIResponse[types.User](resp.Body)
