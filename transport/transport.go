@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"strings"
 	"sync/atomic"
 )
 
@@ -30,10 +31,12 @@ type Transport interface {
 
 // httpTransport implements the Transport interface.
 type httpTransport struct {
-	client    *http.Client
-	baseURL   *url.URL
-	csrfToken atomic.Value // stores string
-	userAgent string
+	client     *http.Client
+	baseURL    *url.URL
+	csrfToken  atomic.Value // stores string
+	userAgent  string
+	apiKey     string
+	pathPrefix string
 }
 
 // New creates a new HTTP transport.
@@ -84,9 +87,11 @@ func New(config *Config, opts ...Option) (Transport, error) {
 	}
 
 	t := &httpTransport{
-		client:    client,
-		baseURL:   baseURL,
-		userAgent: config.UserAgent,
+		client:     client,
+		baseURL:    baseURL,
+		userAgent:  config.UserAgent,
+		apiKey:     config.APIKey,
+		pathPrefix: config.PathPrefix,
 	}
 
 	// Initialize CSRF token as empty string
@@ -98,7 +103,11 @@ func New(config *Config, opts ...Option) (Transport, error) {
 // Do executes an HTTP request.
 func (t *httpTransport) Do(ctx context.Context, req *Request) (*Response, error) {
 	// Build full URL
-	fullURL, err := t.baseURL.Parse(req.Path)
+	reqPath := req.Path
+	if t.pathPrefix != "" {
+		reqPath = "/" + strings.Trim(t.pathPrefix, "/") + "/" + strings.TrimLeft(req.Path, "/")
+	}
+	fullURL, err := t.baseURL.Parse(reqPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build URL: %w", err)
 	}
@@ -126,6 +135,10 @@ func (t *httpTransport) Do(ctx context.Context, req *Request) (*Response, error)
 	}
 	if t.userAgent != "" {
 		httpReq.Header.Set("User-Agent", t.userAgent)
+	}
+
+	if t.apiKey != "" {
+		httpReq.Header.Set("X-API-KEY", t.apiKey)
 	}
 
 	// Add CSRF token if available

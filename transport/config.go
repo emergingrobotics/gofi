@@ -27,6 +27,13 @@ type Config struct {
 
 	// UserAgent is the User-Agent header value.
 	UserAgent string
+
+	// APIKey, when set, is sent as the X-API-KEY header on every request.
+	APIKey string
+
+	// PathPrefix is prepended to every request path. Used to route through
+	// the Site Manager connector, e.g. "/v1/connector/consoles/{id}".
+	PathPrefix string
 }
 
 // Option is a functional option for configuring the transport.

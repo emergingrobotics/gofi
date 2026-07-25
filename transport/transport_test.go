@@ -270,6 +270,89 @@ func TestTransport_CustomHeaders(t *testing.T) {
 	}
 }
 
+func TestDo_APIKeyHeader(t *testing.T) {
+	var gotKey string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotKey = r.Header.Get("X-API-KEY")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	cfg := DefaultConfig(srv.URL)
+	cfg.APIKey = "secret-key"
+	tr, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if _, err := tr.Do(context.Background(), NewRequest("GET", "/anything")); err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	if gotKey != "secret-key" {
+		t.Errorf("X-API-KEY = %q, want %q", gotKey, "secret-key")
+	}
+}
+
+func TestDo_NoAPIKeyHeaderWhenUnset(t *testing.T) {
+	var present bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, present = r.Header["X-Api-Key"]
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	tr, _ := New(DefaultConfig(srv.URL))
+	_, _ = tr.Do(context.Background(), NewRequest("GET", "/anything"))
+	if present {
+		t.Error("X-API-KEY header present but APIKey was not configured")
+	}
+}
+
+func TestDo_PerRequestAPIKeyOverride(t *testing.T) {
+	var gotKey string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotKey = r.Header.Get("X-API-KEY")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	cfg := DefaultConfig(srv.URL)
+	cfg.APIKey = "default-key"
+	tr, _ := New(cfg)
+	req := NewRequest("GET", "/anything").WithHeader("X-API-KEY", "override-key")
+	_, _ = tr.Do(context.Background(), req)
+	if gotKey != "override-key" {
+		t.Errorf("X-API-KEY = %q, want per-request override %q", gotKey, "override-key")
+	}
+}
+
+func TestDo_PathPrefix(t *testing.T) {
+	cases := []struct {
+		name, prefix, reqPath, wantPath string
+	}{
+		{"no prefix", "", "/proxy/network/x", "/proxy/network/x"},
+		{"with prefix", "/v1/connector/consoles/abc", "/proxy/network/x", "/v1/connector/consoles/abc/proxy/network/x"},
+		{"trailing slash prefix", "/v1/connector/consoles/abc/", "/proxy/network/x", "/v1/connector/consoles/abc/proxy/network/x"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var gotPath string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotPath = r.URL.Path
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer srv.Close()
+
+			cfg := DefaultConfig(srv.URL)
+			cfg.PathPrefix = tc.prefix
+			tr, _ := New(cfg)
+			_, _ = tr.Do(context.Background(), NewRequest("GET", tc.reqPath))
+			if gotPath != tc.wantPath {
+				t.Errorf("path = %q, want %q", gotPath, tc.wantPath)
+			}
+		})
+	}
+}
+
 func TestTransport_ContextCancellation(t *testing.T) {
 	// Create test server with delay
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
