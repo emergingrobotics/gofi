@@ -47,54 +47,66 @@ func New(config *Config, opts ...Option) (Client, error) {
 		return nil, ErrInvalidConfig
 	}
 
-	// Validate required fields
-	if config.Host == "" {
-		return nil, NewValidationError("Host", "required")
-	}
-
-	if config.Username == "" {
-		return nil, NewValidationError("Username", "required")
-	}
-
-	if config.Password == "" {
-		return nil, NewValidationError("Password", "required")
-	}
-
-	// Apply defaults
-	if config.Port == 0 {
-		config.Port = 443
-	}
-
-	if config.Site == "" {
-		config.Site = "default"
-	}
-
-	if config.Timeout == 0 {
-		config.Timeout = 30 * transport.DefaultConfig("").Timeout
-	}
-
-	if config.MaxIdleConns == 0 {
-		config.MaxIdleConns = 10
-	}
-
-	// Apply options
+	// Apply options first, so credential/connector options are visible to validation.
 	for _, opt := range opts {
 		opt(config)
 	}
 
-	// Build base URL
-	baseURL := &url.URL{
-		Scheme: "https",
-		Host:   net.JoinHostPort(config.Host, strconv.Itoa(config.Port)),
+	// Validate.
+	hasKey := config.APIKey != ""
+	hasUserPass := config.Username != "" && config.Password != ""
+	switch {
+	case hasKey && hasUserPass:
+		return nil, NewValidationError("APIKey", "set either APIKey or Username+Password, not both")
+	case !hasKey && !hasUserPass:
+		return nil, NewValidationError("APIKey", "one of APIKey (with ConsoleID) or Username+Password is required")
+	}
+	if config.Host != "" && config.ConsoleID != "" {
+		return nil, NewValidationError("ConsoleID", "Host/Port and ConsoleID are mutually exclusive")
+	}
+	if hasKey && config.ConsoleID == "" && config.BaseURL == "" {
+		return nil, NewValidationError("ConsoleID", "APIKey requires ConsoleID (connector mode)")
+	}
+	if !hasKey && config.Host == "" {
+		return nil, NewValidationError("Host", "required")
 	}
 
-	// Create transport config
-	transportConfig := transport.DefaultConfig(baseURL.String())
+	// Defaults (guarded so options set above are preserved).
+	if config.Port == 0 {
+		config.Port = 443
+	}
+	if config.Site == "" {
+		config.Site = "default"
+	}
+	if config.Timeout == 0 {
+		config.Timeout = transport.DefaultConfig("").Timeout
+	}
+	if config.MaxIdleConns == 0 {
+		config.MaxIdleConns = 10
+	}
+
+	// Resolve base URL.
+	var baseURL string
+	switch {
+	case config.BaseURL != "":
+		baseURL = config.BaseURL
+	case config.ConsoleID != "":
+		baseURL = "https://api.ui.com"
+	default:
+		u := &url.URL{Scheme: "https", Host: net.JoinHostPort(config.Host, strconv.Itoa(config.Port))}
+		baseURL = u.String()
+	}
+
+	// Transport config.
+	transportConfig := transport.DefaultConfig(baseURL)
 	transportConfig.Timeout = config.Timeout
 	transportConfig.MaxIdleConns = config.MaxIdleConns
 	transportConfig.TLSConfig = config.TLSConfig
+	transportConfig.APIKey = config.APIKey
+	if config.ConsoleID != "" {
+		transportConfig.PathPrefix = "/v1/connector/consoles/" + config.ConsoleID
+	}
 
-	// Apply TLS skip verify if configured
 	if config.SkipTLSVerify {
 		if transportConfig.TLSConfig == nil {
 			transportConfig.TLSConfig = &tls.Config{}
@@ -102,13 +114,11 @@ func New(config *Config, opts ...Option) (Client, error) {
 		transportConfig.TLSConfig.InsecureSkipVerify = true
 	}
 
-	// Create transport with retry wrapper
 	baseTransport, err := transport.New(transportConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transport: %w", err)
 	}
 
-	// Wrap with retry if configured
 	var trans transport.Transport
 	if config.RetryConfig != nil {
 		retryConfig := &transport.RetryConfig{
@@ -121,8 +131,13 @@ func New(config *Config, opts ...Option) (Client, error) {
 		trans = baseTransport
 	}
 
-	// Create auth manager
-	authMgr := auth.New(trans, config.Username, config.Password)
+	// Select auth manager.
+	var authMgr auth.Manager
+	if config.APIKey != "" {
+		authMgr = auth.NewAPIKey()
+	} else {
+		authMgr = auth.New(trans, config.Username, config.Password)
+	}
 
 	c := &client{
 		config:    config,

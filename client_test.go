@@ -323,3 +323,51 @@ func TestOptions_APIKeyAndConnector(t *testing.T) {
 		t.Errorf("ConsoleID = %q, want console-abc", cfg.ConsoleID)
 	}
 }
+
+func TestNew_APIKeyConnector(t *testing.T) {
+	c, err := New(&Config{}, WithAPIKey("k"), WithConnector("abc"))
+	if err != nil {
+		t.Fatalf("New with API key+connector: %v", err)
+	}
+	if c == nil {
+		t.Fatal("client is nil")
+	}
+}
+
+func TestNew_NoCredentials(t *testing.T) {
+	_, err := New(&Config{Host: "1.2.3.4"})
+	if err == nil {
+		t.Fatal("expected validation error with no credentials")
+	}
+}
+
+func TestNew_BothCredentials(t *testing.T) {
+	_, err := New(&Config{ConsoleID: "abc", APIKey: "k", Username: "u", Password: "p"})
+	if err == nil {
+		t.Fatal("expected validation error when both credential sets present")
+	}
+}
+
+func TestNew_HostAndConsoleMutuallyExclusive(t *testing.T) {
+	_, err := New(&Config{Host: "1.2.3.4", APIKey: "k", ConsoleID: "abc"})
+	if err == nil {
+		t.Fatal("expected error when Host and ConsoleID both set")
+	}
+}
+
+func TestNew_APIKeyRequiresConnector(t *testing.T) {
+	_, err := New(&Config{APIKey: "k"})
+	if err == nil {
+		t.Fatal("expected error: API key without ConsoleID")
+	}
+}
+
+func TestNew_DefaultTimeoutIs30s(t *testing.T) {
+	cfg := &Config{Host: "1.2.3.4", Username: "u", Password: "p"}
+	if _, err := New(cfg); err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if cfg.Timeout != 30*time.Second {
+		t.Errorf("resolved Timeout = %v, want 30s", cfg.Timeout)
+	}
+}
