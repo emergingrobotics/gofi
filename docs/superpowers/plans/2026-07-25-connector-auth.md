@@ -846,113 +846,301 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 7: CLI plumbing for gofips, gofimac, gofinet
+### Task 7: Shared CLI connection-resolution helper
 
 **Files:**
-- Modify: `utilities/gofinet/main.go`, `utilities/gofimac/main.go`, `utilities/gofips/main.go`
-- Test: manual (CLI wiring; behavior is covered by the library tests). Add a build check.
+- Create: `utilities/internal/conn/conn.go`
+- Test: `utilities/internal/conn/conn_test.go`
 
 **Interfaces:**
-- Consumes: Tasks 3–6.
-- Produces: each tool reads `UNIFI_API_KEY` (+ `UNIFI_CONSOLE_ID`) and builds a connector client; falls back to `UNIFI_USERNAME`/`UNIFI_PASSWORD`; key wins when both are present.
+- Consumes: Tasks 3–4 (`gofi.Config`).
+- Produces: package `conn` with exported env-name constants and
+  `func ResolveConfig(w io.Writer, host string, port int, site string, secure bool) (*gofi.Config, error)`.
+  It reads the environment, returns a ready `*gofi.Config` (connector mode when `UNIFI_API_KEY`+`UNIFI_CONSOLE_ID` are set, else local username/password), and writes a one-line note to `w` when a key overrides a present username/password. Import path: `github.com/unifi-go/gofi/utilities/internal/conn`.
 
-- [ ] **Step 1: Add env constants**
+- [ ] **Step 1: Write the failing tests**
 
-In each `main.go`, extend the `const (...)` block with:
+Create `utilities/internal/conn/conn_test.go`:
 
 ```go
-	envAPIKey    = "UNIFI_API_KEY"
-	envConsoleID = "UNIFI_CONSOLE_ID"
+package conn
+
+import (
+	"io"
+	"testing"
+)
+
+func clearEnv(t *testing.T) {
+	t.Helper()
+	for _, k := range []string{EnvUsername, EnvPassword, EnvControllerIP, EnvAPIKey, EnvConsoleID} {
+		t.Setenv(k, "")
+	}
+}
+
+func TestResolveConfig_Connector(t *testing.T) {
+	clearEnv(t)
+	t.Setenv(EnvAPIKey, "k123")
+	t.Setenv(EnvConsoleID, "console-abc")
+	cfg, err := ResolveConfig(io.Discard, "", 443, "default", false)
+	if err != nil {
+		t.Fatalf("ResolveConfig: %v", err)
+	}
+	if cfg.APIKey != "k123" || cfg.ConsoleID != "console-abc" {
+		t.Errorf("got APIKey=%q ConsoleID=%q", cfg.APIKey, cfg.ConsoleID)
+	}
+	if cfg.Host != "" {
+		t.Errorf("Host = %q, want empty in connector mode", cfg.Host)
+	}
+	if !cfg.SkipTLSVerify {
+		t.Error("SkipTLSVerify = false, want true when secure=false")
+	}
+}
+
+func TestResolveConfig_APIKeyRequiresConsole(t *testing.T) {
+	clearEnv(t)
+	t.Setenv(EnvAPIKey, "k123")
+	if _, err := ResolveConfig(io.Discard, "", 443, "default", false); err == nil {
+		t.Fatal("expected error: API key without console ID")
+	}
+}
+
+func TestResolveConfig_Local(t *testing.T) {
+	clearEnv(t)
+	t.Setenv(EnvUsername, "admin")
+	t.Setenv(EnvPassword, "pw")
+	cfg, err := ResolveConfig(io.Discard, "10.0.0.1", 8443, "default", true)
+	if err != nil {
+		t.Fatalf("ResolveConfig: %v", err)
+	}
+	if cfg.Host != "10.0.0.1" || cfg.Port != 8443 || cfg.Username != "admin" {
+		t.Errorf("got %+v", cfg)
+	}
+	if cfg.SkipTLSVerify {
+		t.Error("SkipTLSVerify = true, want false when secure=true")
+	}
+}
+
+func TestResolveConfig_LocalHostFromEnv(t *testing.T) {
+	clearEnv(t)
+	t.Setenv(EnvUsername, "admin")
+	t.Setenv(EnvPassword, "pw")
+	t.Setenv(EnvControllerIP, "192.168.9.9")
+	cfg, err := ResolveConfig(io.Discard, "", 443, "default", false)
+	if err != nil {
+		t.Fatalf("ResolveConfig: %v", err)
+	}
+	if cfg.Host != "192.168.9.9" {
+		t.Errorf("Host = %q, want fallback from env", cfg.Host)
+	}
+}
+
+func TestResolveConfig_NoCredentials(t *testing.T) {
+	clearEnv(t)
+	if _, err := ResolveConfig(io.Discard, "1.2.3.4", 443, "default", false); err == nil {
+		t.Fatal("expected error when no credentials are set")
+	}
+}
+
+func TestResolveConfig_KeyOverridesUserPassWithNote(t *testing.T) {
+	clearEnv(t)
+	t.Setenv(EnvAPIKey, "k123")
+	t.Setenv(EnvConsoleID, "console-abc")
+	t.Setenv(EnvUsername, "admin")
+	t.Setenv(EnvPassword, "pw")
+	var buf strings.Builder
+	cfg, err := ResolveConfig(&buf, "", 443, "default", false)
+	if err != nil {
+		t.Fatalf("ResolveConfig: %v", err)
+	}
+	if cfg.APIKey != "k123" {
+		t.Error("expected API key to win over username/password")
+	}
+	if !strings.Contains(buf.String(), EnvAPIKey) {
+		t.Errorf("expected override note mentioning %s, got %q", EnvAPIKey, buf.String())
+	}
+}
 ```
 
-- [ ] **Step 2: Replace the credential/host-resolution block**
+Add `"strings"` to the test imports.
 
-In each tool, replace the block that currently resolves the host and requires username/password (in `gofinet/main.go` that is lines 53–77, from `if *host == ""` through the `config := &gofi.Config{...}` literal) with this identical block (it ends by assigning `config`):
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `go test ./utilities/internal/conn/ -v`
+Expected: compile error — package `conn` / `ResolveConfig` / `Env*` do not exist yet.
+
+- [ ] **Step 3: Implement the helper**
+
+Create `utilities/internal/conn/conn.go`:
 
 ```go
-	apiKey := os.Getenv(envAPIKey)
-	consoleID := os.Getenv(envConsoleID)
+// Package conn resolves UniFi connection configuration from flags and the
+// environment, shared by the gofips/gofimac/gofinet CLIs.
+package conn
 
-	var config *gofi.Config
+import (
+	"fmt"
+	"io"
+	"os"
+
+	"github.com/unifi-go/gofi"
+)
+
+// Environment variable names used by all three CLIs.
+const (
+	EnvUsername     = "UNIFI_USERNAME"
+	EnvPassword     = "UNIFI_PASSWORD"
+	EnvControllerIP = "UNIFI_CONTROLLER_IP"
+	EnvAPIKey       = "UNIFI_API_KEY"
+	EnvConsoleID    = "UNIFI_CONSOLE_ID"
+)
+
+// ResolveConfig builds a *gofi.Config from the given flag values and the
+// environment. When UNIFI_API_KEY is set it uses connector mode (requiring
+// UNIFI_CONSOLE_ID) and ignores username/password, writing a note to w if
+// those were also set. Otherwise it uses local username/password auth,
+// falling back to UNIFI_CONTROLLER_IP for the host.
+func ResolveConfig(w io.Writer, host string, port int, site string, secure bool) (*gofi.Config, error) {
+	apiKey := os.Getenv(EnvAPIKey)
+	consoleID := os.Getenv(EnvConsoleID)
+
 	if apiKey != "" {
-		if os.Getenv(envUsername) != "" || os.Getenv(envPassword) != "" {
-			fmt.Fprintln(os.Stderr, "Note: "+envAPIKey+" is set; ignoring "+envUsername+"/"+envPassword+".")
+		if os.Getenv(EnvUsername) != "" || os.Getenv(EnvPassword) != "" {
+			fmt.Fprintf(w, "Note: %s is set; ignoring %s/%s.\n", EnvAPIKey, EnvUsername, EnvPassword)
 		}
 		if consoleID == "" {
-			exitError(envConsoleID + " is required when " + envAPIKey + " is set (connector mode)")
+			return nil, fmt.Errorf("%s is required when %s is set (connector mode)", EnvConsoleID, EnvAPIKey)
 		}
-		fmt.Fprintf(os.Stderr, "Connecting via connector to console %s...\n", consoleID)
-		config = &gofi.Config{
+		return &gofi.Config{
 			APIKey:        apiKey,
 			ConsoleID:     consoleID,
-			Site:          *site,
-			SkipTLSVerify: !*secure,
-		}
-	} else {
-		username := os.Getenv(envUsername)
-		password := os.Getenv(envPassword)
-		if username == "" && password == "" {
-			exitError("no credentials: set " + envAPIKey + " (+ " + envConsoleID + "), or " + envUsername + "/" + envPassword)
-		}
-		if username == "" {
-			exitError(envUsername + " environment variable is required")
-		}
-		if password == "" {
-			exitError(envPassword + " environment variable is required")
-		}
-		if *host == "" {
-			*host = os.Getenv(envControllerIP)
-		}
-		if *host == "" {
-			exitError("--host is required (or set " + envControllerIP + ")")
-		}
-		fmt.Fprintf(os.Stderr, "Connecting to %s...\n", *host)
-		config = &gofi.Config{
-			Host:          *host,
-			Port:          *port,
-			Username:      username,
-			Password:      password,
-			Site:          *site,
-			SkipTLSVerify: !*secure,
-		}
+			Site:          site,
+			SkipTLSVerify: !secure,
+		}, nil
 	}
+
+	username := os.Getenv(EnvUsername)
+	password := os.Getenv(EnvPassword)
+	if username == "" && password == "" {
+		return nil, fmt.Errorf("no credentials: set %s (+ %s), or %s/%s", EnvAPIKey, EnvConsoleID, EnvUsername, EnvPassword)
+	}
+	if username == "" {
+		return nil, fmt.Errorf("%s environment variable is required", EnvUsername)
+	}
+	if password == "" {
+		return nil, fmt.Errorf("%s environment variable is required", EnvPassword)
+	}
+	if host == "" {
+		host = os.Getenv(EnvControllerIP)
+	}
+	if host == "" {
+		return nil, fmt.Errorf("--host is required (or set %s)", EnvControllerIP)
+	}
+	return &gofi.Config{
+		Host:          host,
+		Port:          port,
+		Username:      username,
+		Password:      password,
+		Site:          site,
+		SkipTLSVerify: !secure,
+	}, nil
+}
 ```
 
-Remove any now-duplicated `fmt.Fprintf(os.Stderr, "Connecting to %s...\n", *host)` line that preceded the old block (each tool has one such status line — keep only the ones inside the block above).
+- [ ] **Step 4: Run tests to verify they pass**
 
-- [ ] **Step 3: Update each `flag.Usage` "Environment Variables" section**
-
-In each tool's usage function, replace the environment-variable lines so `UNIFI_API_KEY` leads:
-
-```go
-		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
-		fmt.Fprintf(os.Stderr, "  %s\tAPI key (preferred; requires %s)\n", envAPIKey, envConsoleID)
-		fmt.Fprintf(os.Stderr, "  %s\tSite Manager console ID (connector mode)\n", envConsoleID)
-		fmt.Fprintf(os.Stderr, "  %s\tUsername (required if no API key)\n", envUsername)
-		fmt.Fprintf(os.Stderr, "  %s\tPassword (required if no API key)\n", envPassword)
-		fmt.Fprintf(os.Stderr, "  %s\tController host (fallback for -H)\n\n", envControllerIP)
-```
-
-- [ ] **Step 4: Build and smoke-check**
-
-Run: `go build ./utilities/...`
-Expected: builds clean.
-
-Run: `UNIFI_API_KEY=x go run ./utilities/gofinet 2>&1 | head -1`
-Expected: `Error: UNIFI_CONSOLE_ID is required when UNIFI_API_KEY is set (connector mode)`
+Run: `go test ./utilities/internal/conn/ -v`
+Expected: PASS (all six tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add utilities/gofips/main.go utilities/gofimac/main.go utilities/gofinet/main.go
-git commit -m "feat(cli): API-key + connector env vars in gofips/gofimac/gofinet
+git add utilities/internal/conn/conn.go utilities/internal/conn/conn_test.go
+git commit -m "feat(cli): shared connection-resolution helper (key/connector/local)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
 
-### Task 8: Documentation
+### Task 8: Wire the shared helper into gofips, gofimac, gofinet
+
+**Files:**
+- Modify: `utilities/gofinet/main.go`, `utilities/gofimac/main.go`, `utilities/gofips/main.go`
+
+**Interfaces:**
+- Consumes: Task 7 (`conn.ResolveConfig`, `conn.Env*`), Tasks 4–6.
+- Produces: each tool resolves its config via `conn.ResolveConfig` and connects in whichever mode the environment selects.
+
+- [ ] **Step 1: Import the helper and drop the local env consts**
+
+In each `main.go`, add the import `"github.com/unifi-go/gofi/utilities/internal/conn"`. Delete the tool's local `const ( envUsername = ... envPassword = ... envControllerIP = ... )` block — those names now live in `conn`.
+
+- [ ] **Step 2: Replace the credential/host-resolution block with a call to the helper**
+
+In each tool, replace the block that resolves the host and requires username/password (in `gofinet/main.go` that is lines 53–77, from `if *host == ""` through the `config := &gofi.Config{...}` literal, including the preceding `fmt.Fprintf(os.Stderr, "Connecting to %s...\n", *host)` status line) with:
+
+```go
+	config, err := conn.ResolveConfig(os.Stderr, *host, *port, *site, *secure)
+	if err != nil {
+		exitError(err.Error())
+	}
+
+	if config.ConsoleID != "" {
+		fmt.Fprintf(os.Stderr, "Connecting via connector to console %s...\n", config.ConsoleID)
+	} else {
+		fmt.Fprintf(os.Stderr, "Connecting to %s...\n", config.Host)
+	}
+```
+
+Then update the existing client-construction line to reuse `err` with `=` (not `:=`) if the compiler reports `err` already declared:
+
+```go
+	apiClient, err := gofi.New(config)
+```
+
+becomes
+
+```go
+	apiClient, err = gofi.New(config)
+```
+
+(Only if `err` is now in scope from `ResolveConfig`. If the tool declared `err` first at the `gofi.New` line, keep `:=`.)
+
+- [ ] **Step 3: Update each `flag.Usage` "Environment Variables" section**
+
+In each tool's usage function, replace the environment-variable lines so `UNIFI_API_KEY` leads, referencing the `conn` constants:
+
+```go
+		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
+		fmt.Fprintf(os.Stderr, "  %s\tAPI key (preferred; requires %s)\n", conn.EnvAPIKey, conn.EnvConsoleID)
+		fmt.Fprintf(os.Stderr, "  %s\tSite Manager console ID (connector mode)\n", conn.EnvConsoleID)
+		fmt.Fprintf(os.Stderr, "  %s\tUsername (required if no API key)\n", conn.EnvUsername)
+		fmt.Fprintf(os.Stderr, "  %s\tPassword (required if no API key)\n", conn.EnvPassword)
+		fmt.Fprintf(os.Stderr, "  %s\tController host (fallback for -H)\n\n", conn.EnvControllerIP)
+```
+
+Any other references to the old bare `envControllerIP`/`envUsername`/`envPassword` constants elsewhere in the file (e.g. the `-H` flag help text) must be changed to the `conn.Env*` form.
+
+- [ ] **Step 4: Build and smoke-check**
+
+Run: `go build ./utilities/...`
+Expected: builds clean.
+
+Run: `env -u UNIFI_USERNAME -u UNIFI_PASSWORD UNIFI_API_KEY=x go run ./utilities/gofinet 2>&1 | head -1`
+Expected: `Error: UNIFI_CONSOLE_ID is required when UNIFI_API_KEY is set (connector mode)`
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add utilities/gofips/main.go utilities/gofimac/main.go utilities/gofinet/main.go
+git commit -m "feat(cli): resolve config via shared conn helper in all three tools
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
+### Task 9: Documentation
 
 **Files:**
 - Modify: `README.md`, `CLAUDE.md`, `doc.go`, `EXAMPLES.md` (and `examples/*/main.go` credential setup where present)
