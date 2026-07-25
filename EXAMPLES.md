@@ -6,11 +6,25 @@ This directory contains example programs demonstrating how to use the gofi libra
 
 All examples require:
 - UniFi UDM Pro controller (v10+)
-- Controller credentials set via environment variables:
+- Controller credentials. Two auth modes are supported:
+
+  **Cloud API key + Site Manager connector (recommended)** — no direct network route to the
+  controller required:
+  ```bash
+  export UNIFI_API_KEY="..."      # from unifi.ui.com; needs UniFi Applications -> Network scope
+  export UNIFI_CONSOLE_ID="..."   # from GET https://api.ui.com/v1/hosts
+  ```
+
+  **Local username/password (fallback)**:
   ```bash
   export UNIFI_USERNAME="your-username"
   export UNIFI_PASSWORD="your-password"
   ```
+
+  The `crud`, `concurrent`, `websocket`, and `errors` examples build a `gofi.Config` directly
+  in source and default to the API-key path (see each example's notes below to switch to the
+  fallback). The `basic`, `list`, `fixedips`, `addfixedip`, `delfixedip`, and `switches`
+  examples currently read only `UNIFI_USERNAME`/`UNIFI_PASSWORD` from the environment.
 
 ## Building Examples
 
@@ -159,14 +173,16 @@ Subscribes to real-time events from the controller via WebSocket.
 ./bin/websocket
 ```
 
-**Note**: This example has hardcoded credentials in the source. Update before use:
+**Note**: Reads credentials from the environment, API key first (`UNIFI_API_KEY` +
+`UNIFI_CONSOLE_ID`). Uncomment the fallback block in the source to use local
+username/password instead:
 ```go
-config := &gofi.Config{
-    Host:          "192.168.1.1",
-    Username:      "admin",
-    Password:      "your-password",
-    SkipTLSVerify: true,
-}
+// config := &gofi.Config{
+//     Host:          "192.168.1.1",
+//     Username:      "admin",
+//     Password:      "your-password",
+//     SkipTLSVerify: true,
+// }
 ```
 
 **Output**:
@@ -204,7 +220,7 @@ Demonstrates full CRUD lifecycle for networks and WLANs.
 ./bin/crud
 ```
 
-**Note**: Hardcoded credentials - update before use. This example creates resources and then deletes them.
+**Note**: Reads credentials from the environment, API key first (see Prerequisites above). This example creates resources and then deletes them.
 
 **Output**:
 ```
@@ -247,7 +263,7 @@ Demonstrates concurrent operations using gofi's batch utilities.
 ./bin/concurrent
 ```
 
-**Note**: Hardcoded credentials - update before use.
+**Note**: Reads credentials from the environment, API key first (see Prerequisites above).
 
 **Output**:
 ```
@@ -289,7 +305,7 @@ Comprehensive error handling examples using gofi's error types.
 ./bin/errors
 ```
 
-**Note**: Hardcoded credentials - update before use.
+**Note**: Reads credentials from the environment, API key first (see Prerequisites above).
 
 **Output**:
 ```
@@ -303,7 +319,7 @@ Device not found (expected)
 API Error [404]: Resource not found (endpoint: /api/s/default/rest/networkconf/invalid-id)
 
 === Example 4: Handling validation errors ===
-Validation error on field 'host': host is required
+Validation error on field 'APIKey': one of APIKey (with ConsoleID) or Username+Password is required
 
 === Example 5: Automatic retry on transient failures ===
 Connected with retry configuration
@@ -688,7 +704,14 @@ devices, err := client.Devices().List(ctx, site)
 
 ## Environment Setup
 
-Create a `.env` file (not committed to git):
+Create a `.env` file (not committed to git). API key + connector (recommended):
+
+```bash
+UNIFI_API_KEY=your-cloud-api-key
+UNIFI_CONSOLE_ID=your-console-id
+```
+
+Or local username/password (fallback):
 
 ```bash
 UNIFI_USERNAME=admin
@@ -705,8 +728,8 @@ source .env
 Or use direnv with `.envrc`:
 
 ```bash
-export UNIFI_USERNAME=admin
-export UNIFI_PASSWORD=your-secure-password
+export UNIFI_API_KEY=your-cloud-api-key
+export UNIFI_CONSOLE_ID=your-console-id
 ```
 
 ## Production Usage Notes
@@ -746,7 +769,14 @@ export UNIFI_PASSWORD=your-secure-password
 
 ### Authentication Failures
 
-Verify credentials:
+If using an API key, verify it and the console ID are set (a key without `UNIFI_CONSOLE_ID`
+is rejected at `gofi.New()`):
+```bash
+echo "API key set: $([ -n "$UNIFI_API_KEY" ] && echo yes || echo no)"
+echo "Console ID: $UNIFI_CONSOLE_ID"
+```
+
+If using username/password, verify credentials:
 ```bash
 echo "Username: $UNIFI_USERNAME"
 echo "Password: [hidden]"

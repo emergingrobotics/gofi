@@ -82,9 +82,19 @@ gofips -H 192.168.1.1 -s --dry-run hosts.conf
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `UNIFI_USERNAME` | Yes | UDM authentication username |
-| `UNIFI_PASSWORD` | Yes | UDM authentication password |
-| `UNIFI_CONTROLLER_IP` | No | UniFi controller address (fallback if `-H` not given) |
+| `UNIFI_API_KEY` | No | Cloud API key (preferred if set); requires `UNIFI_CONSOLE_ID` |
+| `UNIFI_CONSOLE_ID` | With key | Site Manager console ID (connector mode), from `GET https://api.ui.com/v1/hosts` |
+| `UNIFI_USERNAME` | If no key | UDM authentication username (fallback) |
+| `UNIFI_PASSWORD` | If no key | UDM authentication password (fallback) |
+| `UNIFI_CONTROLLER_IP` | No | UniFi controller address (fallback if `-H` not given; username/password mode only) |
+
+If `UNIFI_API_KEY` is set, it is used and `UNIFI_USERNAME`/`UNIFI_PASSWORD` are ignored.
+
+**Known limitation in connector mode**: `--get` and `--set` cross-check entries against the
+UDM's own live local DNS to catch drift (a name resolving somewhere other than its fixed IP)
+and overlaps (a name already served by device-local DNS). That check dials the controller
+host directly and has no meaning when routed through the connector, so it is skipped when
+`UNIFI_CONSOLE_ID` is set — fixed-IP and DNS record management via the API is unaffected.
 
 ## Flags
 

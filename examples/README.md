@@ -78,7 +78,16 @@ go run main.go
 
 ## Configuration
 
-Update the following values in each example before running:
+The `crud`, `concurrent`, `websocket`, and `errors` examples authenticate via a cloud API key
++ Site Manager connector by default (recommended):
+
+```bash
+export UNIFI_API_KEY=...        # from unifi.ui.com; needs UniFi Applications -> Network scope
+export UNIFI_CONSOLE_ID=...     # from GET https://api.ui.com/v1/hosts
+```
+
+Or uncomment the fallback block in each example's source to use local username/password
+instead:
 
 ```go
 config := &gofi.Config{

@@ -49,11 +49,22 @@ gofi/
 
 ## Key Technical Details
 
-- **Auth**: Cookie-based session via `POST /api/auth/login`
-- **CSRF**: Extract from cookie, send as `X-CSRF-Token` header
-- **Base Path**: UDM Pro uses `/proxy/network` prefix
-- **API Versions**: v1 (`/api/s/{site}/...`) and v2 (`/v2/api/site/{site}/...`)
-- **WebSocket**: Events at `wss://{host}/proxy/network/wss/s/{site}/events`
+- **Auth**: Two mechanisms, selected by which `Config` fields are set:
+  - **Cloud API key + Site Manager connector** (`APIKey` + `ConsoleID`, or
+    `WithAPIKey`/`WithConnector`): sends `X-API-KEY` on every request; the transport talks to
+    `https://api.ui.com` and prepends `/v1/connector/consoles/{ConsoleID}` to the request path.
+    Reaches the classic v1 and v2 paths below through the connector (verified against a live
+    console) — this is the path to use when the controller isn't directly reachable on the LAN.
+  - **Local username/password** (`Username`/`Password`, unchanged): cookie-based session via
+    `POST /api/auth/login` directly against the controller.
+- **CSRF**: Local username/password mode only — extract from cookie, send as `X-CSRF-Token`
+  header. Not applicable in API-key mode (no session cookie is established).
+- **Base Path**: UDM Pro uses `/proxy/network` prefix (both auth modes); in connector mode the
+  `/v1/connector/consoles/{ConsoleID}` prefix is prepended ahead of it.
+- **API Versions**: v1 (`/api/s/{site}/...`) and v2 (`/v2/api/site/{site}/...`) — both reachable
+  under either auth mode.
+- **WebSocket**: Events at `wss://{host}/proxy/network/wss/s/{site}/events` (local
+  username/password mode; not exercised through the connector).
 
 ## Type Patterns
 

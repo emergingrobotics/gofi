@@ -7,18 +7,79 @@
 
 A Go module for programmatic control of Ubiquiti UniFi UDM Pro devices, plus command-line utilities built on top of it.
 
-## Utilities
+## Authentication
 
-Standalone tools built with the gofi module. Build all utilities with `make utilities` or install to `/usr/local/bin` with `sudo make install`.
+gofi supports two authentication modes.
 
-All utilities authenticate via environment variables:
+### Cloud API key via the Site Manager connector (recommended)
+
+```bash
+export UNIFI_API_KEY=...        # from unifi.ui.com; needs UniFi Applications -> Network scope
+export UNIFI_CONSOLE_ID=...     # from GET https://api.ui.com/v1/hosts
+```
+
+```go
+client, err := gofi.New(&gofi.Config{},
+    gofi.WithAPIKey(os.Getenv("UNIFI_API_KEY")),
+    gofi.WithConnector(os.Getenv("UNIFI_CONSOLE_ID")))
+```
+
+The client talks to `https://api.ui.com` and prepends `/v1/connector/consoles/{ConsoleID}` to
+every request path, so no direct network route to the console is required. This reaches the
+classic v1/v2 endpoints that gofi uses (verified against a live console).
+
+**Generating a key**: go to unifi.ui.com -> your profile icon -> **API** -> **Create API Key**.
+A key inherits the permissions of the account that created it, so create it from a Site Admin
+or Owner account. Grant it the **UniFi Applications -> Network** scope. Cloud keys
+(unifi.ui.com) are a different credential from console-issued keys (console UI -> profile icon
+-> API) — connector access needs the cloud key. Find your console ID with:
+
+```bash
+curl -s -H "X-API-KEY: $UNIFI_API_KEY" https://api.ui.com/v1/hosts
+```
+
+API-key auth always requires a console ID (`ConsoleID`/`WithConnector`); a key with no console
+ID is a validation error from `gofi.New()`.
+
+### Local username/password (fallback)
 
 ```bash
 export UNIFI_USERNAME=admin
 export UNIFI_PASSWORD=your-password
 ```
 
-The `UNIFI_CONTROLLER_IP` variable is optional and provides a fallback host address when `-H` is not given.
+```go
+client, err := gofi.New(&gofi.Config{
+    Host:     "192.168.1.1",
+    Username: os.Getenv("UNIFI_USERNAME"),
+    Password: os.Getenv("UNIFI_PASSWORD"),
+})
+```
+
+This is the original cookie/CSRF session flow against a directly-reachable controller. It
+remains fully supported and is used automatically whenever `APIKey` is not set.
+
+## Utilities
+
+Standalone tools built with the gofi module. Build all utilities with `make utilities` or install to `~/bin` with `make install`.
+
+All utilities authenticate the same way — see [Authentication](#authentication) above. The
+API key path is preferred:
+
+```bash
+export UNIFI_API_KEY=...
+export UNIFI_CONSOLE_ID=...
+```
+
+or fall back to username/password:
+
+```bash
+export UNIFI_USERNAME=admin
+export UNIFI_PASSWORD=your-password
+```
+
+`UNIFI_CONTROLLER_IP` is an optional fallback host address (username/password mode only) used
+when `-H` is not given.
 
 ### gofips
 
@@ -78,6 +139,12 @@ gofips -H 192.168.1.1 --del --name mydev   # or --mac / --ip
 | `--secure` | `-k` | Enforce TLS certificate verification (default: accept self-signed) |
 
 See [utilities/gofips/README.md](./utilities/gofips/README.md) and [utilities/docs/gofips/DESIGN.md](./utilities/docs/gofips/DESIGN.md) for details.
+
+**Known limitation in connector mode**: `gofips` normally cross-checks entries against the
+UDM's own live local DNS to catch drift and overlaps. That check needs a directly-reachable
+controller host, which connector mode (`UNIFI_API_KEY` + `UNIFI_CONSOLE_ID`) does not provide,
+so the drift/overlap audit is skipped when running through the connector. Fixed-IP and DNS
+record management via the API is unaffected.
 
 ### gofimac
 
@@ -161,6 +228,9 @@ go get github.com/unifi-go/gofi
 
 ### Quick Start
 
+Authenticating via a cloud API key + the Site Manager connector (recommended — see
+[Authentication](#authentication) above):
+
 ```go
 package main
 
@@ -168,19 +238,15 @@ import (
     "context"
     "fmt"
     "log"
+    "os"
 
     "github.com/unifi-go/gofi"
 )
 
 func main() {
-    config := &gofi.Config{
-        Host:          "192.168.1.1",
-        Username:      "admin",
-        Password:      "your-password",
-        SkipTLSVerify: true,
-    }
-
-    client, err := gofi.New(config)
+    client, err := gofi.New(&gofi.Config{},
+        gofi.WithAPIKey(os.Getenv("UNIFI_API_KEY")),
+        gofi.WithConnector(os.Getenv("UNIFI_CONSOLE_ID")))
     if err != nil {
         log.Fatal(err)
     }
@@ -201,6 +267,18 @@ func main() {
         fmt.Printf("- %s (%s)\n", device.Name, device.Model)
     }
 }
+```
+
+Fallback: local username/password against a directly-reachable controller.
+
+```go
+config := &gofi.Config{
+    Host:          "192.168.1.1",
+    Username:      "admin",
+    Password:      "your-password",
+    SkipTLSVerify: true,
+}
+client, err := gofi.New(config)
 ```
 
 ### Supported Services
@@ -351,7 +429,20 @@ for _, result := range results {
 
 ### Configuration
 
-#### Basic Configuration
+#### API Key + Connector (recommended)
+
+```go
+config := &gofi.Config{
+    APIKey:    os.Getenv("UNIFI_API_KEY"),
+    ConsoleID: os.Getenv("UNIFI_CONSOLE_ID"),
+}
+```
+
+`APIKey` requires `ConsoleID` (or a `BaseURL` override, used for tests) — a key with no
+console ID is a validation error from `gofi.New()`. When `ConsoleID` is set, requests go to
+`https://api.ui.com` and `Host`/`Port` are unused.
+
+#### Basic Configuration (local username/password, fallback)
 
 ```go
 config := &gofi.Config{
@@ -489,7 +580,7 @@ make lint          # Run linter
 make build         # Build the module
 make examples      # Build all examples to bin/examples/
 make utilities     # Build all utilities (gofimac, gofinet, gofips) to bin/
-sudo make install  # Install utilities to /usr/local/bin
+make install       # Install utilities to ~/bin
 make all           # Run lint, test, and build
 ```
 

@@ -52,9 +52,13 @@ Each object contains `name`, `purpose`, `vlan`, `subnet`, `enabled`,
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `UNIFI_USERNAME` | Yes | Controller authentication username |
-| `UNIFI_PASSWORD` | Yes | Controller authentication password |
-| `UNIFI_CONTROLLER_IP` | No | Controller host address (fallback if `-H` not given) |
+| `UNIFI_API_KEY` | No | Cloud API key (preferred if set); requires `UNIFI_CONSOLE_ID` |
+| `UNIFI_CONSOLE_ID` | With key | Site Manager console ID (connector mode), from `GET https://api.ui.com/v1/hosts` |
+| `UNIFI_USERNAME` | If no key | Controller authentication username (fallback) |
+| `UNIFI_PASSWORD` | If no key | Controller authentication password (fallback) |
+| `UNIFI_CONTROLLER_IP` | No | Controller host address (fallback if `-H` not given; username/password mode only) |
+
+If `UNIFI_API_KEY` is set, it is used and `UNIFI_USERNAME`/`UNIFI_PASSWORD` are ignored.
 
 ## Flags
 

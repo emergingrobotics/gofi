@@ -112,10 +112,14 @@ The database is refreshed automatically if older than 30 days. If a download fai
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `UNIFI_USERNAME` | Yes | UDM authentication username |
-| `UNIFI_PASSWORD` | Yes | UDM authentication password |
-| `UNIFI_CONTROLLER_IP` | No | UniFi controller address (fallback if `-H` not given) |
+| `UNIFI_API_KEY` | No | Cloud API key (preferred if set); requires `UNIFI_CONSOLE_ID` |
+| `UNIFI_CONSOLE_ID` | With key | Site Manager console ID (connector mode), from `GET https://api.ui.com/v1/hosts` |
+| `UNIFI_USERNAME` | If no key | UDM authentication username (fallback) |
+| `UNIFI_PASSWORD` | If no key | UDM authentication password (fallback) |
+| `UNIFI_CONTROLLER_IP` | No | UniFi controller address (fallback if `-H` not given; username/password mode only) |
 | `XDG_DATA_HOME` | No | Base directory for OUI data (default `~/.local/share`) |
+
+If `UNIFI_API_KEY` is set, it is used and `UNIFI_USERNAME`/`UNIFI_PASSWORD` are ignored.
 
 ## Flags
 

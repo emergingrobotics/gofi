@@ -5,19 +5,26 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/unifi-go/gofi"
 )
 
 func main() {
-	config := &gofi.Config{
-		Host:          "192.168.1.1",
-		Username:      "admin",
-		Password:      "your-password",
-		SkipTLSVerify: true,
-	}
-
-	client, err := gofi.New(config)
+	// Authenticate via a cloud API key + Site Manager connector (recommended):
+	//   export UNIFI_API_KEY=...      (unifi.ui.com; UniFi Applications -> Network scope)
+	//   export UNIFI_CONSOLE_ID=...   (from GET https://api.ui.com/v1/hosts)
+	//
+	// Fallback: local username/password against a directly-reachable controller:
+	//   config := &gofi.Config{
+	//       Host:          "192.168.1.1",
+	//       Username:      "admin",
+	//       Password:      "your-password",
+	//       SkipTLSVerify: true,
+	//   }
+	client, err := gofi.New(&gofi.Config{},
+		gofi.WithAPIKey(os.Getenv("UNIFI_API_KEY")),
+		gofi.WithConnector(os.Getenv("UNIFI_CONSOLE_ID")))
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
@@ -88,10 +95,8 @@ func main() {
 	// Example 5: Retry on transient failures
 	fmt.Println("\n=== Example 5: Automatic retry on transient failures ===")
 	retryConfig := &gofi.Config{
-		Host:          "192.168.1.1",
-		Username:      "admin",
-		Password:      "your-password",
-		SkipTLSVerify: true,
+		APIKey:    os.Getenv("UNIFI_API_KEY"),
+		ConsoleID: os.Getenv("UNIFI_CONSOLE_ID"),
 		RetryConfig: &gofi.RetryConfig{
 			MaxRetries:     3,
 			InitialBackoff: 100,
