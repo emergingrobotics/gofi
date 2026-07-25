@@ -292,3 +292,16 @@ func (m *manager) IsAuthenticated() bool {
 	defer m.mu.RUnlock()
 	return m.session != nil && m.session.IsValid()
 }
+
+// apiKeyManager is a Manager for X-API-KEY auth. There is no session to
+// establish, so Login and Logout are no-ops and IsAuthenticated is always true.
+type apiKeyManager struct{}
+
+// NewAPIKey returns a Manager for API-key authentication.
+func NewAPIKey() Manager { return &apiKeyManager{} }
+
+func (m *apiKeyManager) Login(ctx context.Context) error               { return nil }
+func (m *apiKeyManager) Logout(ctx context.Context) error              { return nil }
+func (m *apiKeyManager) EnsureAuthenticated(ctx context.Context) error { return nil }
+func (m *apiKeyManager) Session() *Session                             { return nil }
+func (m *apiKeyManager) IsAuthenticated() bool                         { return true }

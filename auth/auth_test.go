@@ -244,6 +244,26 @@ func TestManager_EnsureAuthenticated(t *testing.T) {
 	}
 }
 
+func TestNewAPIKeyManager(t *testing.T) {
+	m := NewAPIKey()
+	ctx := context.Background()
+	if err := m.Login(ctx); err != nil {
+		t.Errorf("Login() = %v, want nil", err)
+	}
+	if err := m.Logout(ctx); err != nil {
+		t.Errorf("Logout() = %v, want nil", err)
+	}
+	if err := m.EnsureAuthenticated(ctx); err != nil {
+		t.Errorf("EnsureAuthenticated() = %v, want nil", err)
+	}
+	if !m.IsAuthenticated() {
+		t.Error("IsAuthenticated() = false, want true")
+	}
+	if m.Session() != nil {
+		t.Errorf("Session() = %v, want nil", m.Session())
+	}
+}
+
 func TestManager_IsAuthenticated(t *testing.T) {
 	config := transport.DefaultConfig("https://192.168.1.1")
 	trans, err := transport.New(config)
