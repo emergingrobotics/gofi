@@ -12,9 +12,11 @@ INSTALL_DIR ?= $(HOME)/bin
 
 .DEFAULT_GOAL := help
 
-all: lint test build utilities
+all: lint test build
 
-build:
+# Build the module (compile-checks the whole tree) and the runnable
+# utilities into bin/. Nothing is ever written to the repo root.
+build: utilities
 	go build ./...
 
 test:
@@ -101,7 +103,7 @@ help:
 	@echo ""
 	@echo "Main targets:"
 	@echo "  all           Run lint, test, and build"
-	@echo "  build         Build the module"
+	@echo "  build         Build the module and utilities into bin/"
 	@echo "  test          Run all tests"
 	@echo "  lint          Run linter"
 	@echo "  clean         Clean all build artifacts"
