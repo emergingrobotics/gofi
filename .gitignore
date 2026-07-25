@@ -4,6 +4,12 @@
 .envrc
 *.env
 
+# Session cookie jars (may contain live auth tokens)
+cookies.txt
+
+# Stray empty placeholder accidentally committed at repo root
+/ssh
+
 # Binaries
 bin/
 *.exe
