@@ -27,8 +27,25 @@ func TestResolveConfig_Connector(t *testing.T) {
 	if cfg.Host != "" {
 		t.Errorf("Host = %q, want empty in connector mode", cfg.Host)
 	}
-	if !cfg.SkipTLSVerify {
-		t.Error("SkipTLSVerify = false, want true when secure=false")
+	if cfg.SkipTLSVerify {
+		t.Error("SkipTLSVerify = true, want false: connector mode (api.ui.com) must always verify TLS")
+	}
+}
+
+// TestResolveConfig_ConnectorAlwaysVerifiesTLS confirms that connector mode
+// ignores the secure flag entirely: api.ui.com has a valid CA-signed cert, so
+// -k/--secure=false (the LAN self-signed accommodation) must not weaken TLS
+// verification against the public connector endpoint.
+func TestResolveConfig_ConnectorAlwaysVerifiesTLS(t *testing.T) {
+	clearEnv(t)
+	t.Setenv(EnvAPIKey, "k123")
+	t.Setenv(EnvConsoleID, "console-abc")
+	cfg, err := ResolveConfig(io.Discard, "", 443, "default", false)
+	if err != nil {
+		t.Fatalf("ResolveConfig: %v", err)
+	}
+	if cfg.SkipTLSVerify {
+		t.Error("SkipTLSVerify = true, want false: connector mode always verifies TLS regardless of secure flag")
 	}
 }
 

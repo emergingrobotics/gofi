@@ -36,10 +36,13 @@ func ResolveConfig(w io.Writer, host string, port int, site string, secure bool)
 			return nil, fmt.Errorf("%s is required when %s is set (connector mode)", EnvConsoleID, EnvAPIKey)
 		}
 		return &gofi.Config{
-			APIKey:        apiKey,
-			ConsoleID:     consoleID,
-			Site:          site,
-			SkipTLSVerify: !secure,
+			APIKey:    apiKey,
+			ConsoleID: consoleID,
+			Site:      site,
+			// api.ui.com has a valid CA-signed certificate; always verify TLS
+			// here regardless of -k/--secure, which only accommodates
+			// self-signed certs on LAN UDMs in the local-auth branch below.
+			SkipTLSVerify: false,
 		}, nil
 	}
 
