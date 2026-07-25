@@ -79,8 +79,8 @@ func TestNetwork_UnmarshalJSON(t *testing.T) {
 				if !n.VLANEnabled {
 					t.Error("VLANEnabled should be true")
 				}
-				if n.VLAN != 20 {
-					t.Errorf("VLAN = %v, want 20", n.VLAN)
+				if n.VLAN.Int() != 20 {
+					t.Errorf("VLAN = %v, want 20", n.VLAN.Int())
 				}
 				if n.IGMPSnooping != true {
 					t.Error("IGMPSnooping should be true")
@@ -110,8 +110,8 @@ func TestNetwork_UnmarshalJSON(t *testing.T) {
 				if n.Purpose != NetworkPurposeGuest {
 					t.Errorf("Purpose = %v, want guest", n.Purpose)
 				}
-				if n.VLAN != 10 {
-					t.Errorf("VLAN = %v, want 10", n.VLAN)
+				if n.VLAN.Int() != 10 {
+					t.Errorf("VLAN = %v, want 10", n.VLAN.Int())
 				}
 			},
 		},
@@ -212,8 +212,8 @@ func TestNetwork_UnmarshalJSON(t *testing.T) {
 				if n.TXBytes.Int64() != 9876543210 {
 					t.Errorf("TXBytes = %v, want 9876543210", n.TXBytes.Int64())
 				}
-				if n.NumSTA != 42 {
-					t.Errorf("NumSTA = %v, want 42", n.NumSTA)
+				if n.NumSTA.Int() != 42 {
+					t.Errorf("NumSTA = %v, want 42", n.NumSTA.Int())
 				}
 			},
 		},
@@ -245,6 +245,38 @@ func TestNetwork_UnmarshalJSON(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "numeric fields returned as strings (UDM inconsistency)",
+			json: `{
+				"_id": "netstr",
+				"name": "StringNums",
+				"purpose": "corporate",
+				"ip_subnet": "192.168.4.0/24",
+				"enabled": true,
+				"networkgroup": "LAN",
+				"dhcpguard_enabled": false,
+				"vlan_enabled": true,
+				"vlan": "20",
+				"dhcpd_leasetime": "86400",
+				"wan_vlan": "5",
+				"num_sta": "7"
+			}`,
+			wantErr: false,
+			check: func(t *testing.T, n *Network) {
+				if n.VLAN.Int() != 20 {
+					t.Errorf("VLAN = %v, want 20 (from string)", n.VLAN.Int())
+				}
+				if n.DHCPDLeaseTime.Int() != 86400 {
+					t.Errorf("DHCPDLeaseTime = %v, want 86400 (from string)", n.DHCPDLeaseTime.Int())
+				}
+				if n.WANVLAN.Int() != 5 {
+					t.Errorf("WANVLAN = %v, want 5 (from string)", n.WANVLAN.Int())
+				}
+				if n.NumSTA.Int() != 7 {
+					t.Errorf("NumSTA = %v, want 7 (from string)", n.NumSTA.Int())
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -269,12 +301,12 @@ func TestNetwork_MarshalJSON(t *testing.T) {
 		Name:                "Test Network",
 		Purpose:             NetworkPurposeCorporate,
 		VLANEnabled:         true,
-		VLAN:                20,
+		VLAN:                FlexInt{Val: 20},
 		IPSubnet:            "10.0.20.0/24",
 		DHCPDEnabled:        true,
 		DHCPDStart:          "10.0.20.10",
 		DHCPDStop:           "10.0.20.250",
-		DHCPDLeaseTime:      86400,
+		DHCPDLeaseTime:      FlexInt{Val: 86400},
 		DHCPDDNSEnabled:     true,
 		DHCPDDNS1:           "8.8.8.8",
 		DHCPDGatewayEnabled: true,
@@ -297,8 +329,8 @@ func TestNetwork_MarshalJSON(t *testing.T) {
 	if n2.ID != n.ID {
 		t.Errorf("ID = %v, want %v", n2.ID, n.ID)
 	}
-	if n2.VLAN != n.VLAN {
-		t.Errorf("VLAN = %v, want %v", n2.VLAN, n.VLAN)
+	if n2.VLAN.Int() != n.VLAN.Int() {
+		t.Errorf("VLAN = %v, want %v", n2.VLAN.Int(), n.VLAN.Int())
 	}
 	if n2.Purpose != n.Purpose {
 		t.Errorf("Purpose = %v, want %v", n2.Purpose, n.Purpose)

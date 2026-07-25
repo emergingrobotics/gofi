@@ -112,3 +112,19 @@ func TestResolveConfig_KeyOverridesUserPassWithNote(t *testing.T) {
 		t.Errorf("expected override note mentioning %s, got %q", EnvAPIKey, buf.String())
 	}
 }
+
+func TestResolveConfig_ConnectorEnablesRetry(t *testing.T) {
+	clearEnv(t)
+	t.Setenv(EnvAPIKey, "k123")
+	t.Setenv(EnvConsoleID, "console-abc")
+	cfg, err := ResolveConfig(io.Discard, "", 443, "default", false)
+	if err != nil {
+		t.Fatalf("ResolveConfig: %v", err)
+	}
+	if cfg.RetryConfig == nil {
+		t.Fatal("connector config should enable RetryConfig for 429 handling")
+	}
+	if cfg.RetryConfig.MaxRetries < 1 {
+		t.Errorf("MaxRetries = %d, want >= 1", cfg.RetryConfig.MaxRetries)
+	}
+}

@@ -175,7 +175,7 @@ func toNetworkInfo(n types.Network) NetworkInfo {
 		ID:          n.ID,
 		Name:        n.Name,
 		Purpose:     n.Purpose,
-		VLAN:        n.VLAN,
+		VLAN:        n.VLAN.Int(),
 		VLANEnabled: n.VLANEnabled,
 		Subnet:      n.IPSubnet,
 		DHCPEnabled: n.DHCPDEnabled,

@@ -23,20 +23,20 @@ type client struct {
 	connected atomic.Bool
 
 	// Lazy-initialized services
-	mu                  sync.Mutex
-	sitesService        services.SiteService
-	devicesService      services.DeviceService
-	networksService     services.NetworkService
-	wlansService        services.WLANService
-	firewallService     services.FirewallService
-	clientsService      services.ClientService
-	usersService        services.UserService
-	routingService      services.RoutingService
-	portForwardService  services.PortForwardService
-	portProfileService  services.PortProfileService
-	settingService      services.SettingService
-	systemService       services.SystemService
-	dnsService          services.DNSService
+	mu                 sync.Mutex
+	sitesService       services.SiteService
+	devicesService     services.DeviceService
+	networksService    services.NetworkService
+	wlansService       services.WLANService
+	firewallService    services.FirewallService
+	clientsService     services.ClientService
+	usersService       services.UserService
+	routingService     services.RoutingService
+	portForwardService services.PortForwardService
+	portProfileService services.PortProfileService
+	settingService     services.SettingService
+	systemService      services.SystemService
+	dnsService         services.DNSService
 
 	logger Logger
 }
@@ -121,11 +121,12 @@ func New(config *Config, opts ...Option) (Client, error) {
 
 	var trans transport.Transport
 	if config.RetryConfig != nil {
-		retryConfig := &transport.RetryConfig{
-			MaxRetries:     config.RetryConfig.MaxRetries,
-			InitialBackoff: config.RetryConfig.InitialBackoff,
-			MaxBackoff:     config.RetryConfig.MaxBackoff,
-		}
+		// Start from defaults so Multiplier and RetryableStatusCodes (incl. 429)
+		// are populated; override only the tunables the caller supplied.
+		retryConfig := transport.DefaultRetryConfig()
+		retryConfig.MaxRetries = config.RetryConfig.MaxRetries
+		retryConfig.InitialBackoff = config.RetryConfig.InitialBackoff
+		retryConfig.MaxBackoff = config.RetryConfig.MaxBackoff
 		trans = transport.NewRetryTransport(baseTransport, retryConfig)
 	} else {
 		trans = baseTransport

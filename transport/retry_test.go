@@ -291,3 +291,65 @@ func TestRetryTransport_CSRFTokenPassthrough(t *testing.T) {
 		t.Errorf("GetCSRFToken() = %s, want test-token", token)
 	}
 }
+
+func TestParseRetryAfter(t *testing.T) {
+	cases := []struct {
+		name   string
+		in     string
+		wantOK bool
+		want   time.Duration
+	}{
+		{"empty", "", false, 0},
+		{"seconds", "5", true, 5 * time.Second},
+		{"zero", "0", true, 0},
+		{"negative", "-3", false, 0},
+		{"garbage", "soon", false, 0},
+		{"clamped", "9999", true, 120 * time.Second},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := parseRetryAfter(tc.in)
+			if ok != tc.wantOK {
+				t.Fatalf("ok = %v, want %v", ok, tc.wantOK)
+			}
+			if ok && got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRetryTransport_RetriesOn429(t *testing.T) {
+	var attempts int32
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&attempts, 1)
+		if n < 3 {
+			// Retry-After: 0 exercises the header path without slowing the test.
+			w.Header().Set("Retry-After", "0")
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	config := DefaultConfig(server.URL)
+	config.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+	baseTransport, err := New(config)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer baseTransport.Close()
+
+	retryTransport := NewRetryTransport(baseTransport, DefaultRetryConfig())
+	resp, err := retryTransport.Do(context.Background(), NewRequest("GET", "/x"))
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("final status = %d, want 200", resp.StatusCode)
+	}
+	if got := atomic.LoadInt32(&attempts); got != 3 {
+		t.Errorf("attempts = %d, want 3 (two 429s then success)", got)
+	}
+}

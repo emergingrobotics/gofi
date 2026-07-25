@@ -56,11 +56,11 @@ func buildNetworkEntry(network types.Network) NetworkEntry {
 		DHCPEnabled: network.DHCPDEnabled,
 		DHCPStart:   network.DHCPDStart,
 		DHCPStop:    network.DHCPDStop,
-		DHCPLease:   network.DHCPDLeaseTime,
+		DHCPLease:   network.DHCPDLeaseTime.Int(),
 		DNS:         collectDNS(network),
 	}
 	if network.VLANEnabled {
-		entry.VLAN = network.VLAN
+		entry.VLAN = network.VLAN.Int()
 	}
 	if network.DHCPDGatewayEnabled {
 		entry.Gateway = network.DHCPDGateway

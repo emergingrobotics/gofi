@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -86,8 +89,15 @@ func (r *RetryTransport) Do(ctx context.Context, req *Request) (*Response, error
 			break
 		}
 
-		// Calculate backoff
+		// Calculate backoff, honoring a server Retry-After header when present.
+		// The cloud connector (api.ui.com) throttles bulk writes with 429 +
+		// Retry-After, so respecting it is what makes a large --set converge.
 		backoff := r.calculateBackoff(attempt)
+		if resp != nil {
+			if ra, ok := parseRetryAfter(resp.Headers.Get("Retry-After")); ok {
+				backoff = ra
+			}
+		}
 
 		// Wait before retry
 		select {
@@ -130,6 +140,38 @@ func (r *RetryTransport) calculateBackoff(attempt int) time.Duration {
 	}
 
 	return time.Duration(backoff)
+}
+
+// parseRetryAfter parses a Retry-After header, which is either an integer count
+// of seconds or an HTTP-date. It returns the delay and whether parsing succeeded,
+// clamped to a 120s ceiling so a misbehaving server can't stall the client.
+func parseRetryAfter(v string) (time.Duration, bool) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return 0, false
+	}
+	const ceiling = 120 * time.Second
+	if secs, err := strconv.Atoi(v); err == nil {
+		if secs < 0 {
+			return 0, false
+		}
+		d := time.Duration(secs) * time.Second
+		if d > ceiling {
+			d = ceiling
+		}
+		return d, true
+	}
+	if t, err := http.ParseTime(v); err == nil {
+		d := time.Until(t)
+		if d < 0 {
+			d = 0
+		}
+		if d > ceiling {
+			d = ceiling
+		}
+		return d, true
+	}
+	return 0, false
 }
 
 // SetCSRFToken sets the CSRF token on the underlying transport.

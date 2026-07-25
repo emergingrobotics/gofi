@@ -31,7 +31,7 @@ func TestBuildNetworkEntry_DHCPFields(t *testing.T) {
 		DHCPDEnabled:   true,
 		DHCPDStart:     "192.168.4.6",
 		DHCPDStop:      "192.168.4.99",
-		DHCPDLeaseTime: 86400,
+		DHCPDLeaseTime: types.FlexInt{Val: 86400},
 	}
 	entry := buildNetworkEntry(network)
 
@@ -47,13 +47,13 @@ func TestBuildNetworkEntry_DHCPFields(t *testing.T) {
 }
 
 func TestBuildNetworkEntry_VLANOnlyWhenEnabled(t *testing.T) {
-	tagged := buildNetworkEntry(types.Network{Name: "guest", VLANEnabled: true, VLAN: 20})
+	tagged := buildNetworkEntry(types.Network{Name: "guest", VLANEnabled: true, VLAN: types.FlexInt{Val: 20}})
 	if tagged.VLAN != 20 {
 		t.Errorf("expected VLAN 20, got %d", tagged.VLAN)
 	}
 
 	// VLAN value present but not enabled -> treated as untagged (0).
-	untagged := buildNetworkEntry(types.Network{Name: "LAN", VLANEnabled: false, VLAN: 1})
+	untagged := buildNetworkEntry(types.Network{Name: "LAN", VLANEnabled: false, VLAN: types.FlexInt{Val: 1}})
 	if untagged.VLAN != 0 {
 		t.Errorf("expected VLAN 0 when VLAN disabled, got %d", untagged.VLAN)
 	}

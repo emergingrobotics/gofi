@@ -43,7 +43,7 @@ func main() {
 		Name:        "IoT Network",
 		Purpose:     "corporate",
 		VLANEnabled: true,
-		VLAN:        20,
+		VLAN:        types.FlexInt{Val: 20},
 		IPSubnet:    "192.168.20.1/24",
 		DHCPDEnabled: true,
 		DHCPDStart:  "192.168.20.10",

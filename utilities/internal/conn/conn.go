@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/unifi-go/gofi"
 )
@@ -43,6 +44,14 @@ func ResolveConfig(w io.Writer, host string, port int, site string, secure bool)
 			// here regardless of -k/--secure, which only accommodates
 			// self-signed certs on LAN UDMs in the local-auth branch below.
 			SkipTLSVerify: false,
+			// The cloud connector throttles bulk writes with HTTP 429; retry
+			// with generous backoff (honoring Retry-After) so a large --set
+			// converges instead of erroring out.
+			RetryConfig: &gofi.RetryConfig{
+				MaxRetries:     8,
+				InitialBackoff: 1 * time.Second,
+				MaxBackoff:     30 * time.Second,
+			},
 		}, nil
 	}
 
@@ -70,5 +79,11 @@ func ResolveConfig(w io.Writer, host string, port int, site string, secure bool)
 		Password:      password,
 		Site:          site,
 		SkipTLSVerify: !secure,
+		// Modest retry for transient 5xx/429 on the local controller.
+		RetryConfig: &gofi.RetryConfig{
+			MaxRetries:     3,
+			InitialBackoff: 200 * time.Millisecond,
+			MaxBackoff:     5 * time.Second,
+		},
 	}, nil
 }
