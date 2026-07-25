@@ -140,11 +140,11 @@ gofips -H 192.168.1.1 --del --name mydev   # or --mac / --ip
 
 See [utilities/gofips/README.md](./utilities/gofips/README.md) and [utilities/docs/gofips/DESIGN.md](./utilities/docs/gofips/DESIGN.md) for details.
 
-**Known limitation in connector mode**: `gofips` normally cross-checks entries against the
-UDM's own live local DNS to catch drift and overlaps. That check needs a directly-reachable
-controller host, which connector mode (`UNIFI_API_KEY` + `UNIFI_CONSOLE_ID`) does not provide,
-so the drift/overlap audit is skipped when running through the connector. Fixed-IP and DNS
-record management via the API is unaffected.
+**Known limitation in connector mode**: `gofips`'s `--get`, `--set`, and `--add` modes normally
+cross-check entries against the UDM's own live local DNS to catch drift and overlaps. That check
+needs a directly-reachable controller host, which connector mode (`UNIFI_API_KEY` +
+`UNIFI_CONSOLE_ID`) does not provide, so the drift/overlap audit is skipped when running through
+the connector. Fixed-IP and DNS record management via the API is unaffected.
 
 ### gofimac
 

@@ -90,7 +90,7 @@ gofips -H 192.168.1.1 -s --dry-run hosts.conf
 
 If `UNIFI_API_KEY` is set, it is used and `UNIFI_USERNAME`/`UNIFI_PASSWORD` are ignored.
 
-**Known limitation in connector mode**: `--get` and `--set` cross-check entries against the
+**Known limitation in connector mode**: `--get`, `--set`, and `--add` cross-check entries against the
 UDM's own live local DNS to catch drift (a name resolving somewhere other than its fixed IP)
 and overlaps (a name already served by device-local DNS). That check dials the controller
 host directly and has no meaning when routed through the connector, so it is skipped when
