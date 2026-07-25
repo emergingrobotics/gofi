@@ -11,12 +11,7 @@ import (
 	"time"
 
 	"github.com/unifi-go/gofi"
-)
-
-const (
-	envUsername     = "UNIFI_USERNAME"
-	envPassword     = "UNIFI_PASSWORD"
-	envControllerIP = "UNIFI_CONTROLLER_IP"
+	"github.com/unifi-go/gofi/utilities/internal/conn"
 )
 
 func main() {
@@ -64,7 +59,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  -m, --mac string\tMAC address to delete\n")
 		fmt.Fprintf(os.Stderr, "  -i, --ip string\tIP address to delete\n\n")
 		fmt.Fprintf(os.Stderr, "Connection:\n")
-		fmt.Fprintf(os.Stderr, "  -H, --host string\tUniFi controller address (or set %s)\n", envControllerIP)
+		fmt.Fprintf(os.Stderr, "  -H, --host string\tUniFi controller address (or set %s)\n", conn.EnvControllerIP)
 		fmt.Fprintf(os.Stderr, "  -p, --port int\tUniFi controller port (default 443)\n")
 		fmt.Fprintf(os.Stderr, "  -S, --site string\tSite name (default \"default\")\n")
 		fmt.Fprintf(os.Stderr, "  -k, --secure\tEnforce TLS certificate verification (default: accept self-signed)\n\n")
@@ -73,9 +68,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  -K, --keep-dns\tDo not delete DNS records on delete\n")
 		fmt.Fprintf(os.Stderr, "      --dry-run\t\tShow what would be done without making changes\n\n")
 		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
-		fmt.Fprintf(os.Stderr, "  %s\tUsername (required)\n", envUsername)
-		fmt.Fprintf(os.Stderr, "  %s\tPassword (required)\n", envPassword)
-		fmt.Fprintf(os.Stderr, "  %s\tUniFi controller (fallback for -H)\n\n", envControllerIP)
+		fmt.Fprintf(os.Stderr, "  %s\tAPI key (preferred; requires %s)\n", conn.EnvAPIKey, conn.EnvConsoleID)
+		fmt.Fprintf(os.Stderr, "  %s\tSite Manager console ID (connector mode)\n", conn.EnvConsoleID)
+		fmt.Fprintf(os.Stderr, "  %s\tUsername (required if no API key)\n", conn.EnvUsername)
+		fmt.Fprintf(os.Stderr, "  %s\tPassword (required if no API key)\n", conn.EnvPassword)
+		fmt.Fprintf(os.Stderr, "  %s\tUniFi controller (fallback for -H)\n\n", conn.EnvControllerIP)
 		fmt.Fprintf(os.Stderr, "Examples:\n")
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k -g > hosts.conf\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k -s hosts.conf\n", os.Args[0])
@@ -105,23 +102,14 @@ func main() {
 		exitError(err.Error())
 	}
 
-	// Resolve host
-	if *host == "" {
-		*host = os.Getenv(envControllerIP)
+	config, err := conn.ResolveConfig(os.Stderr, *host, *port, *site, *secure)
+	if err != nil {
+		exitError(err.Error())
 	}
-	if *host == "" {
-		exitError("--host is required (or set " + envControllerIP + ")")
-	}
-
-	// Credentials
-	username := os.Getenv(envUsername)
-	password := os.Getenv(envPassword)
-	if username == "" {
-		exitError(envUsername + " environment variable is required")
-	}
-	if password == "" {
-		exitError(envPassword + " environment variable is required")
-	}
+	// The resolveFQDN closure below dials the controller's own DNS server
+	// directly by host, so keep *host in sync with whatever ResolveConfig
+	// resolved (e.g. via UNIFI_CONTROLLER_IP fallback).
+	*host = config.Host
 
 	// For --set and --add, parse input before connecting
 	var parsedEntries []HostEntry
@@ -172,13 +160,10 @@ func main() {
 	}
 
 	// Connect
-	config := &gofi.Config{
-		Host:          *host,
-		Port:          *port,
-		Username:      username,
-		Password:      password,
-		Site:          *site,
-		SkipTLSVerify: !*secure,
+	if config.ConsoleID != "" {
+		fmt.Fprintf(os.Stderr, "Connecting via connector to console %s...\n", config.ConsoleID)
+	} else {
+		fmt.Fprintf(os.Stderr, "Connecting to %s...\n", config.Host)
 	}
 
 	client, err := gofi.New(config)

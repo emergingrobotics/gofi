@@ -7,12 +7,7 @@ import (
 	"os"
 
 	"github.com/unifi-go/gofi"
-)
-
-const (
-	envUsername     = "UNIFI_USERNAME"
-	envPassword     = "UNIFI_PASSWORD"
-	envControllerIP = "UNIFI_CONTROLLER_IP"
+	"github.com/unifi-go/gofi/utilities/internal/conn"
 )
 
 func main() {
@@ -35,14 +30,16 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Output:\n")
 		fmt.Fprintf(os.Stderr, "  -j, --json\t\tOutput in JSON format\n\n")
 		fmt.Fprintf(os.Stderr, "Connection:\n")
-		fmt.Fprintf(os.Stderr, "  -H, --host string\tUniFi controller address (or set %s)\n", envControllerIP)
+		fmt.Fprintf(os.Stderr, "  -H, --host string\tUniFi controller address (or set %s)\n", conn.EnvControllerIP)
 		fmt.Fprintf(os.Stderr, "  -p, --port int\tUniFi controller port (default 443)\n")
 		fmt.Fprintf(os.Stderr, "  -S, --site string\tSite name (default \"default\")\n")
 		fmt.Fprintf(os.Stderr, "  -k, --secure\tEnforce TLS certificate verification (default: accept self-signed)\n\n")
 		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
-		fmt.Fprintf(os.Stderr, "  %s\tUsername (required)\n", envUsername)
-		fmt.Fprintf(os.Stderr, "  %s\tPassword (required)\n", envPassword)
-		fmt.Fprintf(os.Stderr, "  %s\tController host (fallback for -H)\n\n", envControllerIP)
+		fmt.Fprintf(os.Stderr, "  %s\tAPI key (preferred; requires %s)\n", conn.EnvAPIKey, conn.EnvConsoleID)
+		fmt.Fprintf(os.Stderr, "  %s\tSite Manager console ID (connector mode)\n", conn.EnvConsoleID)
+		fmt.Fprintf(os.Stderr, "  %s\tUsername (required if no API key)\n", conn.EnvUsername)
+		fmt.Fprintf(os.Stderr, "  %s\tPassword (required if no API key)\n", conn.EnvPassword)
+		fmt.Fprintf(os.Stderr, "  %s\tController host (fallback for -H)\n\n", conn.EnvControllerIP)
 		fmt.Fprintf(os.Stderr, "Examples:\n")
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -j\n", os.Args[0])
@@ -50,30 +47,15 @@ func main() {
 
 	flag.Parse()
 
-	if *host == "" {
-		*host = os.Getenv(envControllerIP)
-	}
-	if *host == "" {
-		exitError("--host is required (or set " + envControllerIP + ")")
+	config, err := conn.ResolveConfig(os.Stderr, *host, *port, *site, *secure)
+	if err != nil {
+		exitError(err.Error())
 	}
 
-	username := os.Getenv(envUsername)
-	password := os.Getenv(envPassword)
-	if username == "" {
-		exitError(envUsername + " environment variable is required")
-	}
-	if password == "" {
-		exitError(envPassword + " environment variable is required")
-	}
-
-	fmt.Fprintf(os.Stderr, "Connecting to %s...\n", *host)
-	config := &gofi.Config{
-		Host:          *host,
-		Port:          *port,
-		Username:      username,
-		Password:      password,
-		Site:          *site,
-		SkipTLSVerify: !*secure,
+	if config.ConsoleID != "" {
+		fmt.Fprintf(os.Stderr, "Connecting via connector to console %s...\n", config.ConsoleID)
+	} else {
+		fmt.Fprintf(os.Stderr, "Connecting to %s...\n", config.Host)
 	}
 
 	apiClient, err := gofi.New(config)
