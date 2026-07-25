@@ -87,24 +87,28 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// All other endpoints require authentication.
+	keyAuthenticated := false
 	if s.requireAuth {
 		if apiKey := r.Header.Get("X-API-KEY"); apiKey != "" {
-			// Key-authenticated: validate the key, skip cookie and CSRF checks.
 			if s.apiKey == "" || apiKey != s.apiKey {
 				writeInsufficientPermissions(w)
 				return
 			}
+			keyAuthenticated = true
 		} else {
 			if !s.isAuthenticated(r) {
 				writeUnauthorized(w)
 				return
 			}
-			if s.requireCSRF && r.Method != "GET" && r.Method != "HEAD" {
-				if !s.validateCSRF(r) {
-					writeForbidden(w, "Invalid CSRF token")
-					return
-				}
-			}
+		}
+	}
+
+	// CSRF is independent of requireAuth (as in the original); key-authenticated
+	// requests are exempt.
+	if s.requireCSRF && !keyAuthenticated && r.Method != "GET" && r.Method != "HEAD" {
+		if !s.validateCSRF(r) {
+			writeForbidden(w, "Invalid CSRF token")
+			return
 		}
 	}
 

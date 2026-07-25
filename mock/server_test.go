@@ -140,3 +140,19 @@ func TestServer_ConnectorPrefixStrip(t *testing.T) {
 		t.Errorf("connector-prefixed status = %d, want 200 (prefix should be stripped)", resp.StatusCode)
 	}
 }
+
+func TestServer_CSRFIndependentOfAuth(t *testing.T) {
+	// WithoutAuth() alone must still enforce CSRF on non-GET requests.
+	srv := NewServer(WithoutAuth())
+	defer srv.Close()
+	client := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
+
+	req, _ := http.NewRequest("POST", srv.URL()+"/proxy/network/api/s/default/rest/networkconf", nil)
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("POST without CSRF token under WithoutAuth() = %d, want 403 (CSRF must stay independent of auth)", resp.StatusCode)
+	}
+}
