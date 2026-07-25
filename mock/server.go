@@ -18,6 +18,7 @@ type Server struct {
 	requireAuth bool
 	requireCSRF bool
 	scenario    Scenario
+	apiKey      string
 }
 
 // NewServer creates a new mock server.
@@ -52,6 +53,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Strip a Site Manager connector prefix, if present, so routing below is unchanged.
+	if strings.HasPrefix(r.URL.Path, "/v1/connector/consoles/") {
+		rest := strings.TrimPrefix(r.URL.Path, "/v1/connector/consoles/")
+		if i := strings.Index(rest, "/"); i >= 0 {
+			r.URL.Path = rest[i:]
+		}
+	}
+
 	// Route requests
 	path := r.URL.Path
 
@@ -77,19 +86,25 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// All other endpoints require authentication
+	// All other endpoints require authentication.
 	if s.requireAuth {
-		if !s.isAuthenticated(r) {
-			writeUnauthorized(w)
-			return
-		}
-	}
-
-	// Check CSRF token for non-GET requests
-	if s.requireCSRF && r.Method != "GET" && r.Method != "HEAD" {
-		if !s.validateCSRF(r) {
-			writeForbidden(w, "Invalid CSRF token")
-			return
+		if apiKey := r.Header.Get("X-API-KEY"); apiKey != "" {
+			// Key-authenticated: validate the key, skip cookie and CSRF checks.
+			if s.apiKey == "" || apiKey != s.apiKey {
+				writeInsufficientPermissions(w)
+				return
+			}
+		} else {
+			if !s.isAuthenticated(r) {
+				writeUnauthorized(w)
+				return
+			}
+			if s.requireCSRF && r.Method != "GET" && r.Method != "HEAD" {
+				if !s.validateCSRF(r) {
+					writeForbidden(w, "Invalid CSRF token")
+					return
+				}
+			}
 		}
 	}
 

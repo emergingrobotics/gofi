@@ -1,6 +1,10 @@
 package mock
 
 import (
+	"crypto/tls"
+	"encoding/json"
+	"io"
+	"net/http"
 	"testing"
 )
 
@@ -86,5 +90,53 @@ func TestServer_State(t *testing.T) {
 	// Should have default admin user
 	if !state.ValidateCredentials("admin", "admin") {
 		t.Error("Default admin user not present")
+	}
+}
+
+func TestServer_APIKeyAuth(t *testing.T) {
+	srv := NewServer(WithAPIKey("good-key"))
+	defer srv.Close()
+	client := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
+
+	// Correct key, no cookie -> authenticated (200).
+	req, _ := http.NewRequest("GET", srv.URL()+"/proxy/network/api/s/default/rest/networkconf", nil)
+	req.Header.Set("X-API-KEY", "good-key")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("correct key status = %d, want 200", resp.StatusCode)
+	}
+
+	// Wrong key -> 403 with exact body.
+	req2, _ := http.NewRequest("GET", srv.URL()+"/proxy/network/api/s/default/rest/networkconf", nil)
+	req2.Header.Set("X-API-KEY", "bad-key")
+	resp2, _ := client.Do(req2)
+	if resp2.StatusCode != http.StatusForbidden {
+		t.Errorf("wrong key status = %d, want 403", resp2.StatusCode)
+	}
+	body, _ := io.ReadAll(resp2.Body)
+	var parsed map[string]interface{}
+	_ = json.Unmarshal(body, &parsed)
+	if parsed["code"] != "forbidden" || parsed["message"] != "insufficient permissions" {
+		t.Errorf("wrong-key body = %s, want forbidden/insufficient permissions", body)
+	}
+}
+
+func TestServer_ConnectorPrefixStrip(t *testing.T) {
+	srv := NewServer(WithAPIKey("good-key"))
+	defer srv.Close()
+	client := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
+
+	req, _ := http.NewRequest("GET",
+		srv.URL()+"/v1/connector/consoles/abc123/proxy/network/api/s/default/rest/networkconf", nil)
+	req.Header.Set("X-API-KEY", "good-key")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("connector-prefixed status = %d, want 200 (prefix should be stripped)", resp.StatusCode)
 	}
 }

@@ -77,6 +77,16 @@ func writeForbidden(w http.ResponseWriter, message string) {
 	writeAPIError(w, http.StatusForbidden, "error", message)
 }
 
+// writeInsufficientPermissions writes the exact 403 body a real console returns
+// for a bad API key.
+func writeInsufficientPermissions(w http.ResponseWriter) {
+	writeJSON(w, http.StatusForbidden, map[string]interface{}{
+		"code":           "forbidden",
+		"httpStatusCode": 403,
+		"message":        "insufficient permissions",
+	})
+}
+
 // writeNotFound writes a 404 Not Found response.
 func writeNotFound(w http.ResponseWriter) {
 	writeAPIError(w, http.StatusNotFound, "error", "not found")

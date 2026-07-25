@@ -32,3 +32,8 @@ func WithScenario(scenario Scenario) Option {
 		s.scenario = scenario
 	}
 }
+
+// WithAPIKey configures the server to accept X-API-KEY authentication.
+func WithAPIKey(key string) Option {
+	return func(s *Server) { s.apiKey = key }
+}
