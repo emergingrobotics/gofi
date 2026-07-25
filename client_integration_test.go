@@ -241,3 +241,43 @@ func TestClient_Integration_ClientService(t *testing.T) {
 		t.Error("Expected client to be unblocked")
 	}
 }
+
+func TestConnectorMode_EndToEnd(t *testing.T) {
+	srv := mock.NewServer(mock.WithAPIKey("test-key"))
+	defer srv.Close()
+
+	c, err := New(&Config{
+		APIKey:        "test-key",
+		ConsoleID:     "console-xyz",
+		BaseURL:       srv.URL(),
+		SkipTLSVerify: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ctx := context.Background()
+	if err := c.Connect(ctx); err != nil {
+		t.Fatalf("Connect (connector mode): %v", err)
+	}
+	if !c.IsConnected() {
+		t.Error("IsConnected() = false after connecting in key mode")
+	}
+	if _, err := c.Networks().List(ctx, "default"); err != nil {
+		t.Errorf("Networks().List through connector: %v", err)
+	}
+}
+
+func TestConnectorMode_BadKeyFailsConnect(t *testing.T) {
+	srv := mock.NewServer(mock.WithAPIKey("good-key"))
+	defer srv.Close()
+
+	c, _ := New(&Config{
+		APIKey:        "wrong-key",
+		ConsoleID:     "console-xyz",
+		BaseURL:       srv.URL(),
+		SkipTLSVerify: true,
+	})
+	if err := c.Connect(context.Background()); err == nil {
+		t.Fatal("expected Connect to fail with a bad API key")
+	}
+}

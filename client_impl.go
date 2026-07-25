@@ -160,6 +160,20 @@ func (c *client) Connect(ctx context.Context) error {
 		return fmt.Errorf("authentication failed: %w", err)
 	}
 
+	// In key mode there is no login; issue one cheap read so a bad key or an
+	// unreachable console fails here rather than on the first real call.
+	if c.config.APIKey != "" {
+		probe := transport.NewRequest("GET",
+			fmt.Sprintf("/proxy/network/api/s/%s/rest/networkconf", c.config.Site))
+		resp, err := c.transport.Do(ctx, probe)
+		if err != nil {
+			return fmt.Errorf("connect probe failed: %w", err)
+		}
+		if resp.StatusCode == 401 || resp.StatusCode == 403 {
+			return fmt.Errorf("authentication failed: status %d (check API key)", resp.StatusCode)
+		}
+	}
+
 	c.connected.Store(true)
 
 	if c.logger != nil {
