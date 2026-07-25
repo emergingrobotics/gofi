@@ -311,3 +311,15 @@ func TestOptions(t *testing.T) {
 		t.Errorf("MaxRetries = %d, want 5", config.RetryConfig.MaxRetries)
 	}
 }
+
+func TestOptions_APIKeyAndConnector(t *testing.T) {
+	cfg := &Config{}
+	WithAPIKey("k123")(cfg)
+	WithConnector("console-abc")(cfg)
+	if cfg.APIKey != "k123" {
+		t.Errorf("APIKey = %q, want k123", cfg.APIKey)
+	}
+	if cfg.ConsoleID != "console-abc" {
+		t.Errorf("ConsoleID = %q, want console-abc", cfg.ConsoleID)
+	}
+}

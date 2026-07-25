@@ -57,3 +57,14 @@ func WithSite(site string) Option {
 		c.Site = site
 	}
 }
+
+// WithAPIKey authenticates via the X-API-KEY header instead of username/password.
+func WithAPIKey(key string) Option {
+	return func(c *Config) { c.APIKey = key }
+}
+
+// WithConnector routes requests through the Site Manager connector proxy for
+// the given console ID. Combine with WithAPIKey.
+func WithConnector(consoleID string) Option {
+	return func(c *Config) { c.ConsoleID = consoleID }
+}

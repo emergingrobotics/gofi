@@ -19,6 +19,19 @@ type Config struct {
 	// Password for local admin authentication.
 	Password string
 
+	// APIKey authenticates via the X-API-KEY header. When set, Username and
+	// Password are ignored and no login request is made. Requires ConsoleID
+	// (connector mode).
+	APIKey string
+
+	// ConsoleID is the Site Manager console ID. When set, requests are routed
+	// through the connector proxy at https://api.ui.com and Host/Port are unused.
+	ConsoleID string
+
+	// BaseURL overrides the derived base URL (host:port, or the connector's
+	// https://api.ui.com). Mainly for testing against a mock server.
+	BaseURL string
+
 	// Site is the default site ID (default: "default").
 	Site string
 
