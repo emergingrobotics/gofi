@@ -91,4 +91,7 @@ temp/
 # Go workspace files (if not using workspaces)
 go.work
 go.work.sum
+
+# Agent/process scratch (skill work artifacts)
 .llm/
+.superpowers/
