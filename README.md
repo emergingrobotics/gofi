@@ -2,96 +2,110 @@
 
 # gofi - Go UniFi Controller Client
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/unifi-go/gofi.svg)](https://pkg.go.dev/github.com/unifi-go/gofi)
+[![Go Reference](https://pkg.go.dev/badge/github.com/unifi-go/gofi.svg)](https://pkg.go.dev/github.com/unifi-go/gofi/src)
 [![Go Report Card](https://goreportcard.com/badge/github.com/unifi-go/gofi)](https://goreportcard.com/report/github.com/unifi-go/gofi)
 
-A Go module for programmatic control of Ubiquiti UniFi UDM Pro devices, plus command-line utilities built on top of it.
+Programmatic control of Ubiquiti UniFi UDM Pro devices. This repository is two things:
 
-## Authentication
+- **Command-line programs** — ready-to-run tools (`gofips`, `gofimac`, `gofinet`) and
+  example programs for managing fixed IPs, listing clients, inspecting networks, and more.
+- **A Go module (SDK)** — a type-safe, concurrent-safe client library you can import into
+  your own programs.
 
-gofi supports two authentication modes.
+If you just want to get work done from the shell, start with **[Part 1: Command-line
+programs](#part-1-command-line-programs)**. If you're writing Go code against a UniFi
+controller, jump to **[Part 2: Using gofi in your Go program](#part-2-using-gofi-in-your-go-program-sdk)**.
 
-### Cloud API key via the Site Manager connector (recommended)
+---
+
+# Part 1: Command-line programs
+
+## Step 1 — Get a UniFi API key (recommended)
+
+gofi supports two ways to authenticate. A **cloud API key** used through Ubiquiti's Site
+Manager connector is the recommended one: it works even when the controller isn't directly
+reachable on your LAN, needs no session cookies, and is what all three utilities use by
+default.
+
+**Create the key:**
+
+1. Sign in at [unifi.ui.com](https://unifi.ui.com) using a **Site Admin** or **Owner**
+   account. A key inherits the permissions of the account that created it.
+2. Go to your **profile icon → API → Create API Key**.
+3. Grant it the **UniFi Applications → Network** scope.
+
+> Cloud keys (from unifi.ui.com) are a different credential from console-issued keys (from
+> the console's own UI). Connector access requires the **cloud** key.
+
+**Find your console ID** (the connector needs it):
 
 ```bash
-export UNIFI_API_KEY=...        # from unifi.ui.com; needs UniFi Applications -> Network scope
-export UNIFI_CONSOLE_ID=...     # from GET https://api.ui.com/v1/hosts
-```
-
-```go
-client, err := gofi.New(&gofi.Config{},
-    gofi.WithAPIKey(os.Getenv("UNIFI_API_KEY")),
-    gofi.WithConnector(os.Getenv("UNIFI_CONSOLE_ID")))
-```
-
-The client talks to `https://api.ui.com` and prepends `/v1/connector/consoles/{ConsoleID}` to
-every request path, so no direct network route to the console is required. This reaches the
-classic v1/v2 endpoints that gofi uses (verified against a live console).
-
-**Generating a key**: go to unifi.ui.com -> your profile icon -> **API** -> **Create API Key**.
-A key inherits the permissions of the account that created it, so create it from a Site Admin
-or Owner account. Grant it the **UniFi Applications -> Network** scope. Cloud keys
-(unifi.ui.com) are a different credential from console-issued keys (console UI -> profile icon
--> API) — connector access needs the cloud key. Find your console ID with:
-
-```bash
+export UNIFI_API_KEY=...    # the key you just created
 curl -s -H "X-API-KEY: $UNIFI_API_KEY" https://api.ui.com/v1/hosts
 ```
 
-API-key auth always requires a console ID (`ConsoleID`/`WithConnector`); a key with no console
-ID is a validation error from `gofi.New()`.
-
-### Local username/password (fallback)
-
-```bash
-export UNIFI_USERNAME=admin
-export UNIFI_PASSWORD=your-password
-```
-
-```go
-client, err := gofi.New(&gofi.Config{
-    Host:     "192.168.1.1",
-    Username: os.Getenv("UNIFI_USERNAME"),
-    Password: os.Getenv("UNIFI_PASSWORD"),
-})
-```
-
-This is the original cookie/CSRF session flow against a directly-reachable controller. It
-remains fully supported and is used automatically whenever `APIKey` is not set.
-
-## Utilities
-
-Standalone tools built with the gofi module. Build all utilities with `make utilities` or install to `~/bin` with `make install`.
-
-All utilities authenticate the same way — see [Authentication](#authentication) above. The
-API key path is preferred:
+**Export both values** so the programs can find them:
 
 ```bash
 export UNIFI_API_KEY=...
 export UNIFI_CONSOLE_ID=...
 ```
 
-or fall back to username/password:
+That's it — every request now goes to `https://api.ui.com`, which forwards it to your
+console. No direct network route to the UDM is required.
+
+### Alternative — local username/password
+
+If the controller is directly reachable and you'd rather use admin credentials, set these
+instead:
 
 ```bash
 export UNIFI_USERNAME=admin
 export UNIFI_PASSWORD=your-password
+export UNIFI_CONTROLLER_IP=192.168.1.1   # optional; used when -H is not given
 ```
 
-`UNIFI_CONTROLLER_IP` is an optional fallback host address (username/password mode only) used
-when `-H` is not given.
+This uses the original cookie/CSRF session flow against the controller. It is fully
+supported and kicks in automatically whenever `UNIFI_API_KEY` is not set.
 
-### gofips
+```mermaid
+flowchart LR
+    A[CLI / your program] -->|UNIFI_API_KEY set| B[api.ui.com connector]
+    B --> C[UDM Pro console]
+    A -->|username + password| C
+```
 
-Manages fixed IP (DHCP reservation) assignments **with hostnames and DNS records** on a UDM Pro, using the industry-standard ISC DHCP `dhcpd.conf` host-declaration format. This is the tool for bulk fixed-IP management — it replaces the earlier `fixedips` / `addfixedip` / `delfixedip` examples by adding hostname and DNS support.
+## Step 2 — Build and install the programs
+
+```bash
+make install        # build the utilities and install them to ~/bin
+make utilities      # or just build them into ./bin
+make examples       # build the example programs into ./bin/examples
+```
+
+`make install` puts `gofips`, `gofimac`, and `gofinet` on your `PATH` (override the
+destination with `make install INSTALL_DIR=/somewhere/else`).
+
+## The utilities
+
+The three utilities support **both** auth modes described above; the API-key path is
+preferred. In every command below, `-H` sets the host for username/password mode and is
+ignored in connector mode.
+
+### gofips — fixed IP + DNS management
+
+Manages fixed IP (DHCP reservation) assignments **with hostnames and DNS records**, using
+the industry-standard ISC DHCP `dhcpd.conf` host-declaration format. This is the tool for
+bulk fixed-IP management; it replaces the older `fixedips` / `addfixedip` / `delfixedip`
+examples by adding hostname and DNS support.
 
 **Export current assignments** (dump to disk, edit, push back):
 
 ```bash
-gofips -H 192.168.1.1 --get > hosts.conf
+gofips --get > hosts.conf
 ```
 
-Assignments are emitted sorted by IP address in ISC DHCP format, where the `host <name>` label is the DNS name:
+Assignments are emitted sorted by IP, where the `host <name>` label is the DNS name:
 
 ```
 # gofips fixed IP assignments
@@ -111,17 +125,18 @@ host printer {
 **Import (bulk provision) from a file or stdin:**
 
 ```bash
-gofips -H 192.168.1.1 --set hosts.conf
-cat hosts.conf | gofips -H 192.168.1.1 --set
+gofips --set hosts.conf
+cat hosts.conf | gofips --set
 ```
 
-The input is fully validated before any changes are made; unchanged entries are skipped and the network for each IP is auto-detected from configured subnets. Add `--dry-run` to preview changes without applying them.
+Input is fully validated before any change is made; unchanged entries are skipped, and the
+network for each IP is auto-detected from configured subnets. Add `--dry-run` to preview.
 
 **Add or delete a single host:**
 
 ```bash
-gofips -H 192.168.1.1 --add 'host mydev { hardware ethernet aa:bb:cc:dd:ee:ff; fixed-address 192.168.1.50; }'
-gofips -H 192.168.1.1 --del --name mydev   # or --mac / --ip
+gofips --add 'host mydev { hardware ethernet aa:bb:cc:dd:ee:ff; fixed-address 192.168.1.50; }'
+gofips --del --name mydev   # or --mac / --ip
 ```
 
 | Flag | Short | Description |
@@ -138,23 +153,25 @@ gofips -H 192.168.1.1 --del --name mydev   # or --mac / --ip
 | `--site` | `-S` | Site name (default: "default") |
 | `--secure` | `-k` | Enforce TLS certificate verification (default: accept self-signed) |
 
-See [utilities/gofips/README.md](./utilities/gofips/README.md) and [utilities/docs/gofips/DESIGN.md](./utilities/docs/gofips/DESIGN.md) for details.
+See [utilities/gofips/README.md](./utilities/gofips/README.md) and
+[utilities/docs/gofips/DESIGN.md](./utilities/docs/gofips/DESIGN.md) for details.
 
-**Known limitation in connector mode**: `gofips`'s `--get`, `--set`, and `--add` modes normally
-cross-check entries against the UDM's own live local DNS to catch drift and overlaps. That check
-needs a directly-reachable controller host, which connector mode (`UNIFI_API_KEY` +
-`UNIFI_CONSOLE_ID`) does not provide, so the drift/overlap audit is skipped when running through
-the connector. Fixed-IP and DNS record management via the API is unaffected.
+> **Known limitation in connector mode:** `--get`, `--set`, and `--add` normally
+> cross-check entries against the UDM's live local DNS to catch drift and overlaps. That
+> check needs a directly-reachable controller, which connector mode does not provide, so
+> the drift/overlap audit is skipped through the connector. Fixed-IP and DNS record
+> management via the API is unaffected.
 
-### gofimac
+### gofimac — connected clients with manufacturer lookup
 
-Lists connected clients (wired, WiFi, or all) with manufacturer identification looked up independently from the IEEE OUI database rather than relying on the UDM's built-in fingerprinting.
+Lists connected clients (wired, WiFi, or all) with manufacturer identification looked up
+independently from the IEEE OUI database rather than the UDM's built-in fingerprinting.
 
 ```bash
-gofimac -H 192.168.1.1  # all connected clients (default)
-gofimac -H 192.168.1.1 --wifi   # WiFi clients only
-gofimac -H 192.168.1.1 --wired  # wired clients only
-gofimac -H 192.168.1.1 --json   # JSON output
+gofimac              # all connected clients (default)
+gofimac --wifi       # WiFi clients only
+gofimac --wired      # wired clients only
+gofimac --json       # JSON output
 ```
 
 Text output is tab-separated (MAC, IP, hostname, manufacturer), sorted by IP:
@@ -164,7 +181,9 @@ aa:bb:cc:dd:ee:01	192.168.1.10	myserver	Dell Inc.
 aa:bb:cc:dd:ee:02	192.168.1.11	printer	Hewlett Packard
 ```
 
-The IEEE OUI database is downloaded and cached under `$XDG_DATA_HOME/gofimac/` (default `~/.local/share/gofimac/`) and refreshed automatically when older than 30 days. If a refresh fails, a cached copy is used with a warning.
+The IEEE OUI database is cached under `$XDG_DATA_HOME/gofimac/` (default
+`~/.local/share/gofimac/`) and refreshed automatically when older than 30 days. If a
+refresh fails, the cached copy is used with a warning.
 
 | Flag | Short | Description |
 |------|-------|-------------|
@@ -177,19 +196,17 @@ The IEEE OUI database is downloaded and cached under `$XDG_DATA_HOME/gofimac/` (
 | `--site` | `-S` | Site name (default: "default") |
 | `--secure` | `-k` | Enforce TLS certificate verification (default: accept self-signed) |
 
-See [utilities/gofimac/README.md](./utilities/gofimac/README.md) and [utilities/docs/gofimac/DESIGN.md](./utilities/docs/gofimac/DESIGN.md) for details.
+See [utilities/gofimac/README.md](./utilities/gofimac/README.md) and
+[utilities/docs/gofimac/DESIGN.md](./utilities/docs/gofimac/DESIGN.md) for details.
 
----
+### gofinet — networks, subnets, and DHCP pools
 
-### gofinet
-
-List networks with their subnet and DHCP dynamic address pool. Tells you the range of
-dynamically-assigned addresses so you know which addresses are safe for static
-reservations (the companion to `gofips`).
+Lists networks with their subnet and DHCP dynamic address pool, so you know which addresses
+are safe for static reservations. It is the companion to `gofips`.
 
 ```bash
-gofinet -H 192.168.1.1         # all networks
-gofinet -H 192.168.1.1 -j      # JSON output
+gofinet         # all networks
+gofinet -j      # JSON output
 ```
 
 ```
@@ -199,37 +216,64 @@ cj-iot      2     192.168.10.1/24  192.168.10.100 - 192.168.10.200  86400s  -   
 Internet 1  -     -                (disabled)                       -       -        -
 ```
 
-Networks with no active DHCP server (WAN, vlan-only) show `(disabled)`.
+Networks with no active DHCP server (WAN, vlan-only) show `(disabled)`. See
+[utilities/gofinet/README.md](./utilities/gofinet/README.md) for details.
 
-See [utilities/gofinet/README.md](./utilities/gofinet/README.md) for details.
+## The example programs
+
+The [`examples/`](./examples/) directory holds small, focused programs that demonstrate the
+SDK. Build them with `make examples` (binaries land in `bin/examples/`).
+
+Auth support varies by example: `concurrent`, `crud`, `errors`, and `websocket` accept the
+API-key variables above, while the others currently use `UNIFI_USERNAME` /
+`UNIFI_PASSWORD`. Check the top of each `main.go`, or
+[examples/README.md](./examples/README.md), for specifics.
+
+| Example | Description |
+|---------|-------------|
+| `basic` | Connecting, listing sites, devices, networks, health status |
+| `list` | List networks in table or JSON format |
+| `crud` | Create, read, update, delete for networks and WLANs |
+| `concurrent` | Batch/concurrent operations with `gofi.BatchGet` |
+| `websocket` | Real-time WebSocket event streaming |
+| `errors` | Error handling patterns |
+| `fixedips` | List all fixed IP assignments (reference; superseded by `gofips`) |
+| `addfixedip` | Assign a fixed IP by MAC address (reference; superseded by `gofips`) |
+| `delfixedip` | Remove a fixed IP assignment (reference; superseded by `gofips`) |
+| `switches` | Switch and PoE management |
 
 ---
 
-## Module
+# Part 2: Using gofi in your Go program (SDK)
 
-The gofi Go module provides type-safe, concurrent-safe access to all major UniFi Network Application endpoints.
+The gofi module gives you type-safe, concurrent-safe access to all major UniFi Network
+Application endpoints (v1, v2, REST, and WebSocket).
 
 ### Features
 
-- **Complete API Coverage**: All major UniFi Network Application endpoints (v1, v2, REST, WebSocket)
-- **Type-Safe**: Full type definitions for all UniFi resources
-- **Concurrent-Safe**: Thread-safe operations with proper synchronization
-- **Production-Ready**: Comprehensive error handling, retry logic, and connection pooling
-- **Well-Tested**: 500+ tests with race detection and high coverage
-- **WebSocket Support**: Real-time event streaming
-- **Batch Operations**: Concurrent operations for improved performance
-- **Mock Server**: Full mock implementation for testing without hardware
+- **Complete API coverage** — all major endpoints across the v1, v2, REST, and WebSocket surfaces
+- **Type-safe** — full type definitions for every UniFi resource
+- **Concurrent-safe** — thread-safe operations with proper synchronization
+- **Production-ready** — error handling, retry with backoff, and connection pooling
+- **Well-tested** — 500+ tests with race detection and high coverage
+- **Mock server** — a full mock implementation for testing without hardware
 
-### Installation
+### Install
 
 ```bash
 go get github.com/unifi-go/gofi
 ```
 
-### Quick Start
+The importable package lives under `src/` and is named `gofi`:
 
-Authenticating via a cloud API key + the Site Manager connector (recommended — see
-[Authentication](#authentication) above):
+```go
+import "github.com/unifi-go/gofi/src"   // used as gofi.New(...)
+```
+
+### Quick start
+
+Authenticating with a cloud API key through the connector (recommended — see
+[Step 1](#step-1--get-a-unifi-api-key-recommended)):
 
 ```go
 package main
@@ -269,73 +313,85 @@ func main() {
 }
 ```
 
-Fallback: local username/password against a directly-reachable controller.
+### Authentication and configuration
+
+**API key + connector (recommended).** `APIKey` requires `ConsoleID` (or a `BaseURL`
+override, used for tests) — a key with no console ID is a validation error from
+`gofi.New()`. When `ConsoleID` is set, requests go to `https://api.ui.com` and `Host` /
+`Port` are unused.
+
+```go
+config := &gofi.Config{
+    APIKey:    os.Getenv("UNIFI_API_KEY"),
+    ConsoleID: os.Getenv("UNIFI_CONSOLE_ID"),
+}
+```
+
+**Local username/password (fallback).** Cookie/CSRF session against a directly-reachable
+controller.
+
+```go
+config := &gofi.Config{
+    Host:     "192.168.1.1",
+    Port:     443,
+    Username: "admin",
+    Password: os.Getenv("UNIFI_PASSWORD"),
+    Site:     "default",
+}
+```
+
+**TLS.** Provide your own `tls.Config` for valid certificates, or set `SkipTLSVerify` for
+self-signed certs in development.
 
 ```go
 config := &gofi.Config{
     Host:          "192.168.1.1",
     Username:      "admin",
-    Password:      "your-password",
-    SkipTLSVerify: true,
+    Password:      os.Getenv("UNIFI_PASSWORD"),
+    SkipTLSVerify: true, // development only
 }
-client, err := gofi.New(config)
 ```
 
-### Supported Services
+**Advanced options and retry.**
 
-#### Core Services
-- **Sites**: Site management and health monitoring
-- **Devices**: Access points, switches, gateways control
-- **Networks**: VLAN and network configuration
-- **WLANs**: Wireless network management
+```go
+client, err := gofi.New(config,
+    gofi.WithTimeout(30*time.Second),
+    gofi.WithRetry(3, 100*time.Millisecond),
+    gofi.WithSite("custom-site"),
+    gofi.WithLogger(customLogger),
+)
 
-#### Security & Access
-- **Firewall**: Firewall rules and groups (v1 and v2 APIs)
-- **Traffic Rules**: QoS and traffic shaping
-- **Clients**: Connected client management and guest authorization
-- **Users**: Known client management with fixed IPs
+// or via Config:
+config.RetryConfig = &gofi.RetryConfig{
+    MaxRetries:     3,
+    InitialBackoff: 100 * time.Millisecond,
+    MaxBackoff:     5 * time.Second,
+}
+```
 
-#### Advanced Features
-- **Routing**: Static route management
-- **Port Forwarding**: NAT port forwarding rules
-- **Port Profiles**: Switch port configuration profiles
-- **Settings**: System settings (RADIUS, DNS, NTP, SNMP, etc.)
-- **System**: Backups, speed tests, admin management
+### Supported services
 
-#### Real-Time
-- **Events**: WebSocket event streaming for real-time updates
+| Area | Services |
+|------|----------|
+| Core | Sites, Devices, Networks, WLANs |
+| Security & access | Firewall (v1/v2), Traffic Rules, Clients, Users |
+| Advanced | Routing, Port Forwarding, Port Profiles, Settings, System |
+| Real-time | Events (WebSocket streaming) |
 
-### Examples
+### Common operations
 
-See the [examples](./examples/) directory for comprehensive usage examples. Build all examples with `make examples`.
+**Devices**
 
-All examples require the same environment variables as the utilities above.
-
-| Example | Description |
-|---------|-------------|
-| `basic` | Connecting, listing sites, devices, networks, health status |
-| `list` | List networks in table or JSON format |
-| `crud` | Create, Read, Update, Delete operations for networks and WLANs |
-| `concurrent` | Batch/concurrent operations with `gofi.BatchGet` |
-| `websocket` | Real-time WebSocket event streaming |
-| `errors` | Error handling patterns |
-| `fixedips` | List all fixed IP assignments (reference; superseded by the `gofips` utility) |
-| `addfixedip` | Assign a fixed IP to a device by MAC address (reference; superseded by `gofips`) |
-| `delfixedip` | Remove a fixed IP assignment (reference; superseded by `gofips`) |
-| `switches` | Switch and PoE management |
-
-### API Coverage
-
-#### Device Management
 ```go
 devices, err := client.Devices().List(ctx, "default")
 err = client.Devices().Adopt(ctx, "default", "aa:bb:cc:dd:ee:ff")
 err = client.Devices().Restart(ctx, "default", "aa:bb:cc:dd:ee:ff")
 err = client.Devices().Upgrade(ctx, "default", "aa:bb:cc:dd:ee:ff")
-err = client.Devices().Locate(ctx, "default", "aa:bb:cc:dd:ee:ff")
 ```
 
-#### Network Management
+**Networks**
+
 ```go
 network := &types.Network{
     Name:         "IoT Network",
@@ -349,7 +405,8 @@ updated, err := client.Networks().Update(ctx, "default", network)
 err = client.Networks().Delete(ctx, "default", network.ID)
 ```
 
-#### Wireless Networks
+**Wireless networks**
+
 ```go
 wlan := &types.WLAN{
     Name:       "Guest WiFi",
@@ -360,13 +417,13 @@ wlan := &types.WLAN{
     IsGuest:    true,
 }
 created, err := client.WLANs().Create(ctx, "default", wlan)
-err = client.WLANs().Disable(ctx, "default", wlan.ID)
 err = client.WLANs().Enable(ctx, "default", wlan.ID)
 macs := []string{"aa:bb:cc:dd:ee:ff"}
 err = client.WLANs().SetMACFilter(ctx, "default", wlan.ID, "allow", macs)
 ```
 
-#### Client Management
+**Clients**
+
 ```go
 clients, err := client.Clients().ListActive(ctx, "default")
 err = client.Clients().Block(ctx, "default", "aa:bb:cc:dd:ee:ff")
@@ -375,25 +432,25 @@ err = client.Clients().AuthorizeGuest(ctx, "default", "aa:bb:cc:dd:ee:ff",
     WithUploadLimit(5000),
     WithDownloadLimit(10000),
 )
-err = client.Clients().Kick(ctx, "default", "aa:bb:cc:dd:ee:ff")
 ```
 
-#### Firewall Rules
+**Firewall**
+
 ```go
 rules, err := client.Firewall().ListRules(ctx, "default")
 rule := &types.FirewallRule{
-    Name:        "Block IoT to LAN",
-    Enabled:     true,
-    Action:      "drop",
-    Ruleset:     "LAN_IN",
+    Name:         "Block IoT to LAN",
+    Enabled:      true,
+    Action:       "drop",
+    Ruleset:      "LAN_IN",
     SrcNetworkID: iotNetworkID,
     DstNetworkID: lanNetworkID,
 }
 created, err := client.Firewall().CreateRule(ctx, "default", rule)
-trafficRules, err := client.Firewall().ListTrafficRules(ctx, "default")
 ```
 
-#### Real-Time Events
+**Real-time events**
+
 ```go
 eventCh, errorCh, err := client.Events().Subscribe(ctx, "default")
 if err != nil {
@@ -411,7 +468,8 @@ for {
 }
 ```
 
-#### Batch Operations
+**Batch operations**
+
 ```go
 deviceIDs := []string{"id1", "id2", "id3"}
 results := gofi.BatchGet(ctx, deviceIDs, func(ctx context.Context, id string) (*types.Device, error) {
@@ -427,91 +485,12 @@ for _, result := range results {
 }
 ```
 
-### Configuration
-
-#### API Key + Connector (recommended)
-
-```go
-config := &gofi.Config{
-    APIKey:    os.Getenv("UNIFI_API_KEY"),
-    ConsoleID: os.Getenv("UNIFI_CONSOLE_ID"),
-}
-```
-
-`APIKey` requires `ConsoleID` (or a `BaseURL` override, used for tests) — a key with no
-console ID is a validation error from `gofi.New()`. When `ConsoleID` is set, requests go to
-`https://api.ui.com` and `Host`/`Port` are unused.
-
-#### Basic Configuration (local username/password, fallback)
-
-```go
-config := &gofi.Config{
-    Host:     "192.168.1.1",
-    Port:     443,
-    Username: "admin",
-    Password: "password",
-    Site:     "default",
-}
-```
-
-#### TLS Configuration
-
-For production with valid certificates:
-
-```go
-config := &gofi.Config{
-    Host:      "unifi.example.com",
-    Username:  "admin",
-    Password:  os.Getenv("UNIFI_PASSWORD"),
-    TLSConfig: &tls.Config{
-        // Your TLS configuration
-    },
-}
-```
-
-For self-signed certificates (development/testing):
-
-```go
-config := &gofi.Config{
-    Host:          "192.168.1.1",
-    Username:      "admin",
-    Password:      "password",
-    SkipTLSVerify: true,
-}
-```
-
-#### Advanced Options
-
-```go
-client, err := gofi.New(config,
-    gofi.WithTimeout(30*time.Second),
-    gofi.WithRetry(3, 100*time.Millisecond),
-    gofi.WithSite("custom-site"),
-    gofi.WithLogger(customLogger),
-)
-```
-
-#### Retry Configuration
-
-```go
-config := &gofi.Config{
-    RetryConfig: &gofi.RetryConfig{
-        MaxRetries:     3,
-        InitialBackoff: 100 * time.Millisecond,
-        MaxBackoff:     5 * time.Second,
-    },
-}
-```
-
-### Error Handling
+### Error handling
 
 ```go
 if err := client.Connect(ctx); err != nil {
     if errors.Is(err, gofi.ErrAuthenticationFailed) {
-        // Handle auth failure
-    }
-    if errors.Is(err, gofi.ErrNotFound) {
-        // Handle not found
+        // handle auth failure
     }
 
     var apiErr *gofi.APIError
@@ -521,11 +500,13 @@ if err := client.Connect(ctx); err != nil {
 }
 ```
 
-Available sentinel errors: `ErrNotConnected`, `ErrAlreadyConnected`, `ErrAuthenticationFailed`, `ErrSessionExpired`, `ErrNotFound`, `ErrPermissionDenied`, `ErrRateLimited`, `ErrServerError`.
+Sentinel errors: `ErrNotConnected`, `ErrAlreadyConnected`, `ErrAuthenticationFailed`,
+`ErrSessionExpired`, `ErrNotFound`, `ErrPermissionDenied`, `ErrRateLimited`,
+`ErrServerError`.
 
-### Testing
+### Testing with the mock server
 
-The library includes a comprehensive mock server:
+The library ships a full mock server so you can test without hardware.
 
 ```go
 func TestYourCode(t *testing.T) {
@@ -557,16 +538,17 @@ func TestYourCode(t *testing.T) {
 
 ```
 gofi/
-├── client.go          # Main client interface
-├── types/             # Type definitions for all resources
-├── services/          # Service implementations (12 services)
-├── auth/              # Authentication and session management
-├── transport/         # HTTP transport with retry logic
-├── websocket/         # WebSocket client for events
-├── mock/              # Mock server for testing
-├── internal/          # Internal utilities
-├── examples/          # Usage examples
-└── utilities/         # Command-line tools
+├── src/               # Library source (package gofi + sub-packages)
+│   ├── client.go      # Main client interface
+│   ├── types/         # Type definitions for all resources
+│   ├── services/      # Service implementations
+│   ├── auth/          # Authentication and session management
+│   ├── transport/     # HTTP transport with retry logic
+│   ├── websocket/     # WebSocket client for events
+│   ├── mock/          # Mock server for testing
+│   └── internal/      # Internal utilities
+├── examples/          # Example programs
+└── utilities/         # Command-line tools (gofips, gofimac, gofinet)
 ```
 
 ---
@@ -577,9 +559,9 @@ gofi/
 make test          # Run all tests
 make coverage      # Generate coverage report
 make lint          # Run linter
-make build         # Build the module
+make build         # Build the module and utilities
 make examples      # Build all examples to bin/examples/
-make utilities     # Build all utilities (gofimac, gofinet, gofips) to bin/
+make utilities     # Build all utilities to bin/
 make install       # Install utilities to ~/bin
 make all           # Run lint, test, and build
 ```
@@ -592,28 +574,22 @@ make all           # Run lint, test, and build
 
 ## Compatibility
 
-Tested with:
-- UniFi OS 4.x and 5.x
-- Network Application 10.x
-- UDM Pro, UDM SE, and UDR devices
+Tested with UniFi OS 4.x and 5.x, Network Application 10.x, on UDM Pro, UDM SE, and UDR.
 
 ## Documentation
 
-- [Design](./docs/DESIGN.md) - Architecture details
-- [Examples](./examples/) - Usage examples
-- [GoDoc](https://pkg.go.dev/github.com/unifi-go/gofi/src) - API reference
+- [Design](./docs/DESIGN.md) — architecture details
+- [Examples](./examples/) — usage examples
+- [GoDoc](https://pkg.go.dev/github.com/unifi-go/gofi/src) — API reference
 
 ## Contributing
 
-Contributions are welcome! Please ensure:
-- All tests pass (`make test`)
-- Code passes linting (`make lint`)
-- New features include tests
-- Changes maintain backward compatibility
+Contributions are welcome. Please ensure all tests pass (`make test`), code passes linting
+(`make lint`), new features include tests, and changes maintain backward compatibility.
 
 ## License
 
-This project is licensed under the MIT License.
+MIT License.
 
 ## Acknowledgments
 
