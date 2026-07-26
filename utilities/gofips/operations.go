@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/unifi-go/gofi"
-	"github.com/unifi-go/gofi/types"
+	"github.com/unifi-go/gofi/src"
+	"github.com/unifi-go/gofi/src/types"
 )
 
 type SetResult struct {

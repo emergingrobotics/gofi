@@ -240,7 +240,7 @@ import (
     "log"
     "os"
 
-    "github.com/unifi-go/gofi"
+    "github.com/unifi-go/gofi/src"
 )
 
 func main() {
@@ -601,7 +601,7 @@ Tested with:
 
 - [Design](./docs/DESIGN.md) - Architecture details
 - [Examples](./examples/) - Usage examples
-- [GoDoc](https://pkg.go.dev/github.com/unifi-go/gofi) - API reference
+- [GoDoc](https://pkg.go.dev/github.com/unifi-go/gofi/src) - API reference
 
 ## Contributing
 

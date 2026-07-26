@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/unifi-go/gofi"
+	"github.com/unifi-go/gofi/src"
 	"github.com/unifi-go/gofi/utilities/internal/conn"
 )
 

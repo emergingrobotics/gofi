@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unifi-go/gofi/services"
-	"github.com/unifi-go/gofi/types"
+	"github.com/unifi-go/gofi/src/services"
+	"github.com/unifi-go/gofi/src/types"
 )
 
 // setResolver installs a stub UDM resolver for the duration of a test.

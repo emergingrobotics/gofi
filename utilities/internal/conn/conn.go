@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/unifi-go/gofi"
+	"github.com/unifi-go/gofi/src"
 )
 
 // Environment variable names used by all three CLIs.

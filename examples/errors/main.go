@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/unifi-go/gofi"
+	"github.com/unifi-go/gofi/src"
 )
 
 func main() {

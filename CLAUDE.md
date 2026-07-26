@@ -24,27 +24,37 @@ A Go module for programmatic control of UniFi UDM Pro devices (v10+).
 
 ## Architecture Overview
 
+The module path stays `github.com/unifi-go/gofi`; the library source lives under
+`src/`, so the root package is imported as `github.com/unifi-go/gofi/src` (package
+name is still `gofi`). `examples/` and `utilities/` remain at the repo top level.
+
 ```
 gofi/
-├── client.go          # Main client, authentication, request handling
-├── types.go           # All domain types (Device, Network, WLAN, etc.)
-├── errors.go          # Sentinel errors, APIError type
-├── services/          # Service implementations
-│   ├── site.go
-│   ├── device.go
-│   ├── network.go
-│   ├── wlan.go
-│   ├── firewall.go
-│   ├── client.go
-│   ├── user.go
-│   ├── routing.go
-│   └── ...
-├── mock/              # Mock server for testing
-│   ├── server.go
-│   ├── handlers.go
-│   ├── fixtures/
-│   └── scenarios/
-└── examples/
+├── src/               # Library source (package gofi + sub-packages)
+│   ├── client.go      # Main client, authentication, request handling
+│   ├── types/         # All domain types (Device, Network, WLAN, etc.)
+│   ├── errors.go      # Sentinel errors, APIError type
+│   ├── services/      # Service implementations
+│   │   ├── site.go
+│   │   ├── device.go
+│   │   ├── network.go
+│   │   ├── wlan.go
+│   │   ├── firewall.go
+│   │   ├── client.go
+│   │   ├── user.go
+│   │   ├── routing.go
+│   │   └── ...
+│   ├── mock/          # Mock server for testing
+│   │   ├── server.go
+│   │   ├── handlers.go
+│   │   ├── fixtures/
+│   │   └── scenarios/
+│   ├── auth/          # Authentication helpers
+│   ├── transport/     # HTTP transport, connector prefixing
+│   ├── websocket/     # Event stream client
+│   └── internal/      # Internal helpers
+├── examples/          # Runnable example programs (consumers)
+└── utilities/         # CLI tools: gofips, gofimac, gofinet
 ```
 
 ## Key Technical Details

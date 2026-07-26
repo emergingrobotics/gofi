@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/unifi-go/gofi/types"
+	"github.com/unifi-go/gofi/src/types"
 )
 
 func TestBuildNetworkEntries_SortsByName(t *testing.T) {

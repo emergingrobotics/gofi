@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/unifi-go/gofi"
-	"github.com/unifi-go/gofi/types"
+	"github.com/unifi-go/gofi/src"
+	"github.com/unifi-go/gofi/src/types"
 )
 
 func main() {

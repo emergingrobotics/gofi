@@ -4,8 +4,8 @@ import (
 	"context"
 	"sort"
 
-	"github.com/unifi-go/gofi"
-	"github.com/unifi-go/gofi/types"
+	"github.com/unifi-go/gofi/src"
+	"github.com/unifi-go/gofi/src/types"
 )
 
 // NetworkEntry is the flattened view of a UniFi network that gofinet reports,
