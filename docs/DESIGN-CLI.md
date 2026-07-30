@@ -10,10 +10,40 @@ This document specifies the command tree, its flags, its behavior, and the chang
 that it needs. It does not specify function signatures; see [`DESIGN.md`](DESIGN.md) for
 library architecture.
 
+## The module is the product
+
+**`gofi` is a Go module for building tooling against UniFi devices. The CLI is one consumer of
+it.** Not the product, not a wrapper with the real logic inside it — a consumer, and deliberately
+the most demanding one available, so that building it proves the module is good enough to build
+complex tooling on.
+
+That ordering is a constraint on this design, not a sentiment:
+
+**Nothing the CLI knows may be knowledge a second consumer would need.** If someone writing their
+own program against the module would have to rediscover it — that the controller rejects a static
+DNS record overlapping device-local DNS, that a device round-trip drops unmodeled JSON, how a
+host declaration maps onto a user record plus a DNS record, how an IEEE OUI file parses — then it
+belongs in `src/` as an exported package, and the CLI calls it like anyone else would.
+
+**What stays in the CLI is policy and presentation only.** Flag parsing, terminal output, prompts,
+confirmation, exit codes, and the three guards. A library must not prompt, must not print, must
+not call `os.Exit`, and must not refuse a well-formed request because the author of a CLI thought
+it was unwise.
+
+The current tools fail this test, which is the second reason to replace them. The ISC host
+declaration parser lives in `utilities/gofips/parse.go` and the IEEE OUI cache in
+`utilities/gofimac/oui.go` — both `package main`, both unreachable by any other program, both
+generic enough to have no UniFi dependency at all. Anyone wanting either has to copy it. Moving
+them into the module is most of the [library work](#library-work) this design requires, and it is
+worth doing on its own merits even if the CLI were never built.
+
+See [Package layout](#package-layout) for where the line falls, package by package.
+
 ---
 
 ## Contents
 
+- [The module is the product](#the-module-is-the-product)
 - [Why one binary, and why this command line](#why-one-binary-and-why-this-command-line)
 - [Scope and non-goals](#scope-and-non-goals)
 - [Shape of the command line](#shape-of-the-command-line)
@@ -30,12 +60,13 @@ library architecture.
 - [`gofi wifi`](#gofi-wifi)
 - [`gofi clients`](#gofi-clients)
 - [`gofi profile`](#gofi-profile)
+- [`gofi lab`](#gofi-lab) — the portable lab definition
 - [`gofi system`](#gofi-system)
 - [`gofi config`](#gofi-config)
 - [`gofi completion`](#gofi-completion)
 - [The three guards](#the-three-guards)
 - [Two things UniFi does that will surprise you](#two-things-unifi-does-that-will-surprise-you)
-- [Required changes to `src/`](#required-changes-to-src)
+- [Library work](#library-work)
 - [Package layout](#package-layout)
 - [Testing requirements](#testing-requirements)
 - [Migration from gofips, gofimac, and gofinet](#migration-from-gofips-gofimac-and-gofinet)
@@ -52,10 +83,24 @@ OUI lookup), `gofinet` (networks and DHCP pools). Each parses its own flags with
 quarter of the same problem. Adding a fifth mode to `gofips` or a fourth tool is the wrong
 direction.
 
-The command line is borrowed from `gogl` rather than invented, for one reason: the two tools
-do the same job on different hardware. A network captured from a UDM Pro gets recreated on a
-pocket router in an unfamiliar building, and back. Anyone doing that drives both tools in the
-same session, often in the same shell script. One vocabulary means one thing to remember.
+The command line is borrowed from `gogl` rather than invented, because the two tools host the
+same thing on different hardware.
+
+**The portable lab is one network definition with two possible hosts.** A set of lab devices —
+boards, players, single-board computers — lives on a subnet with fixed addresses, resolvable
+names, and an SSID. At home a UDM Pro serves that network. On the road a GL.iNet travel router
+serves it instead. **The two are never in use at the same time.** They are the same network,
+relocated, and the devices on it must not be able to tell which one they are talking to: same
+subnet, same addresses, same names, same SSID, same passphrase.
+
+That framing decides what the tools share and what they do not, and it is easy to get wrong.
+Anything a device would notice must be identical on both — so it travels. Anything a device
+would not notice, and anything that is a property of the *building* rather than the network,
+must not travel: a channel that is clear at home is occupied in a hotel.
+
+`gofi lab export` writes that definition; `gogl lab import` applies it, and the reverse. One
+vocabulary across both tools means one thing to remember at the point where a mistake costs you
+a working network in an unfamiliar place.
 
 Where UniFi cannot support a `gogl` command, this document says so rather than inventing a
 near-equivalent under the same name.
@@ -64,14 +109,19 @@ near-equivalent under the same name.
 
 **In scope:** LAN addressing and DHCP pools, fixed-IP reservations, local DNS records and
 domains, wireless identity (SSID, passphrase, encryption), per-radio tuning (channel, width,
-power), connected clients with independent OUI lookup, whole-network capture and apply,
-controller identity, and `gofi`'s own configuration.
+power), connected clients with independent OUI lookup, whole-network capture and apply, the
+portable lab definition shared with `gogl`, controller identity, and `gofi`'s own configuration.
 
-**Not in scope:** firewall rules, port forwarding, traffic rules, routing, VPN, port profiles,
-PoE control, device adoption, RADIUS, guest portals, speed tests, backups, and the event
-websocket. The library supports much of this (see [`DESIGN.md`](DESIGN.md)); the CLI does not
-expose it. `gofi` is for making a network reproducible, not for administering a controller.
-Anything outside that is a Go program against the module.
+**Not in scope for the CLI:** firewall rules, port forwarding, traffic rules, routing, VPN, port
+profiles, PoE control, device adoption, RADIUS, guest portals, speed tests, backups, and the event
+websocket.
+
+**The library supports most of that already** (see [`DESIGN.md`](DESIGN.md)), and the CLI's not
+exposing it is a scoping decision about one program, never a limit on the module. `gofi` the binary
+is for making a network reproducible; `gofi` the module is for building whatever you need against a
+UniFi controller. When a CLI command needs library capability that does not exist yet, the
+capability goes into `src/` in general form and the command calls it — see
+[Library work](#library-work).
 
 **Not a UniFi admin panel replacement**, and not a byte-exact backup tool. For a full
 controller backup, use the controller's own backup feature.
@@ -91,6 +141,7 @@ graph LR
     gofi --> wifi
     gofi --> clients
     gofi --> profile
+    gofi --> lab
     gofi --> system
     gofi --> config
     gofi --> completion
@@ -109,6 +160,7 @@ graph LR
     wifi --> wifi_cmds["list · show · set"]
     clients --> clients_cmds["list · vendor"]
     profile --> profile_cmds["export · import"]
+    lab --> lab_cmds["export · import · show"]
     system --> system_cmds["info"]
     config --> config_cmds["show · controllers · init"]
 ```
@@ -119,7 +171,8 @@ graph LR
 | `radio` | Per-radio tuning on an access point: channel, width, transmit power |
 | `wifi` | Per-WLAN identity: SSID, passphrase, encryption, hidden, enabled |
 | `clients` | Connected stations, with IEEE OUI manufacturer lookup |
-| `profile` | A whole network captured to JSON, and applied back |
+| `profile` | A whole network captured to JSON, and applied back — UniFi only |
+| `lab` | The portable lab definition: the subset `gogl` can also host |
 | `system` | Controller model, version, endpoint, auth mode |
 | `config` | `gofi`'s own configuration file |
 | `completion` | Shell completion scripts |
@@ -449,10 +502,12 @@ IP             MAC                HOSTNAME
 Static MAC-to-IP bindings. Aliased as `res`, since the canonical form is four words. Replaces
 `gofips`.
 
-**Each host declaration is two writes.** A fixed-IP binding on the user record for the
-address, and a static DNS record for the name. UniFi stores them as separate objects and joins
-them for nobody — the same split `gogl` works around on GL.iNet, for different reasons. These
-commands keep both in step, so you write one declaration and get both.
+**Each host declaration is one or two writes.** A fixed-IP binding on the user record always,
+and a static DNS record for the qualified name unless the controller's own device-local DNS
+already answers it correctly. The controller auto-registers the bare name and rejects static
+records that overlap it, so the second write is conditional rather than unconditional — see
+[Two things UniFi does](#two-things-unifi-does-that-will-surprise-you). These commands keep
+both in step, so you write one declaration and get working resolution.
 
 The text format is ISC DHCP host declarations, kept on its own merits: it diffs, it reviews, it
 lives in git, and it is what a `gogl` router reads.
@@ -580,9 +635,17 @@ This is also the precondition for moving the subnet without `--force`.
 
 The DNS domain and the records the controller resolves.
 
-**A reservation does not create a DNS record.** The name on a UniFi fixed-IP binding is a
-label on the user record. Resolution comes from static DNS records, and that is what these
-commands write.
+**A reservation creates a bare-name record, but not a qualified one.** A fixed IP with a name
+is auto-registered in the UDM's device-local DNS, so `nas` resolves with no further work.
+`nas.lab.example` does not — and a client running `systemd-resolved` qualifies a single-label
+name before it ever asks, so on a network with a domain the bare record alone leaves `ping nas`
+failing. These commands write the static records that make the qualified form resolve, and the
+domain that makes qualification meaningful.
+
+Static records cannot override device-local DNS. The controller rejects an overlapping create
+with `api.err.StaticDnsOverlapsWithDeviceLocalDns`, which `gofi` treats as success when the
+device-local answer is already correct and as drift when it is not. See
+[Two things UniFi does](#two-things-unifi-does-that-will-surprise-you).
 
 ### `gofi lan dns show`
 
@@ -592,13 +655,20 @@ Reports the selected network's domain and every record.
 $ gofi lan dns show
 DOMAIN     lab.example
 
-ADDRESS         NAME              TYPE  MANAGED
-192.168.4.13    nas.lab.example   A     yes
-192.168.4.14    pi.lab.example    A     yes
-192.168.4.200   vault             A     no
+ADDRESS         NAME             TYPE  SOURCE        MANAGED
+192.168.4.13    nas              -     device-local  yes
+192.168.4.13    nas.lab.example  A     static        yes
+192.168.4.14    pi.lab.example   A     static        yes
+192.168.4.200   vault            A     static        no
 ```
 
 With no domain configured it says so, because that state blocks every reservation write.
+
+`SOURCE` distinguishes the two mechanisms. `static` rows come from the API. `device-local` rows
+have no endpoint that lists them — they are discovered by querying the controller's own resolver
+on port 53 for each reservation's name, the technique `gofips` already uses. A controller that
+does not answer DNS queries gets its device-local rows omitted with a warning rather than
+failing the command.
 
 `MANAGED` marks records that pair with a reservation on this network. It exists because of the
 scoping problem `clear` has to solve, below.
@@ -623,6 +693,12 @@ so they resolve regardless of a client's search list.
 
 Points a name at an address, as an A record. A bare name is qualified with the network's
 domain. A name already in use is replaced.
+
+Where device-local DNS already answers the name with the address you asked for, no static
+record is written and the command reports why — the controller would reject it as overlapping
+anyway. Where device-local DNS answers with a *different* address, that is reported as an error
+naming both values, because a static record cannot override it and the fix is to correct the
+reservation instead.
 
 ### `gofi lan dns rm NAME`
 
@@ -710,7 +786,7 @@ gofi radio set --ap U6-Pro-off --device na --width 80 --power low
 the width; there is no field to write.
 
 **Only the fields you name are sent.** This is the constraint driving the library change in
-[Required changes to `src/`](#required-changes-to-src): a whole-struct `PUT` of a `Device` would
+[Library work](#library-work): a whole-struct `PUT` of a `Device` would
 silently drop every `radio_table` field the Go type does not model, which on an AP includes
 minimum RSSI, antenna gain, and vendor extensions. Radio writes must merge into the device's
 existing `radio_table`, not replace it.
@@ -778,9 +854,12 @@ result is written back — which is safe here in a way it is not for a device, b
 
 `--ssid` renames the WLAN in place rather than creating a second one. `gogl wifi set --band 5
 --ssid lab-5g` gives a band its own name; the UniFi equivalent is a WLAN restricted to that
-band, which is `--bands 5g` on a separate WLAN, created in the admin panel or by `profile
-import`. `gofi wifi` does not create or delete WLANs — that is a network topology change, not
-an identity change, and `add`/`rm` are deliberately absent from this area.
+band, which is `--bands 5g` on a separate WLAN.
+
+`gofi wifi` does not create or delete WLANs — that is a network topology change, not an identity
+change, and `add`/`rm` are deliberately absent from this area. Creating one is the job of
+`gofi lab import --create` or `gofi profile import`, where it happens as part of building a
+network rather than as a standalone act.
 
 Refused over a wireless session; `--yes` does not override that.
 
@@ -897,8 +976,9 @@ reachable from the same session. Reporting success for a partly-applied profile 
 not depend on the LAN address. This is a real advantage of connector mode for cloning work and
 the reason `gofi` keeps both auth paths.
 
-A **model mismatch warns rather than fails.** Addresses and names are portable; wireless is
-not — AP models, radio names, channel lists and regulatory domains differ. WLANs and radios the
+A **model mismatch warns rather than fails.** Addresses, names, and wireless *identity* are
+portable. Radio *tuning* is not — AP models, radio names, channel lists and regulatory domains
+differ, and a channel that is clear in one building is occupied in another. WLANs and radios the
 target lacks are reported and skipped.
 
 Idempotent: a second run reports nothing to do.
@@ -916,6 +996,225 @@ gofi -H 192.168.4.1 lan reservations export > home.hosts
 gogl lan dns set --domain lab.example
 gogl lan reservations import home.hosts
 ```
+
+---
+
+## `gofi lab`
+
+The portable lab definition: everything needed to stand this network up on either a UDM Pro or
+a GL.iNet travel router, and nothing else. `gogl` implements the same area over the same files.
+
+A lab is **two files sharing a stem**:
+
+| File | Format | Carries | Changes |
+|---|---|---|---|
+| `NAME.hosts` | ISC DHCP host declarations | one block per device: hostname, MAC, address | often |
+| `NAME.lab` | TOML | the envelope: subnet, pool, domain, wireless identity | rarely |
+
+Two files rather than one because they change at completely different rates. You add a board to
+`.hosts` most weeks; you change the subnet or the SSID almost never. Splitting them keeps the
+noisy file small and diffable, keeps the stable file readable at a glance, and leaves `.hosts`
+consumable by real `dhcpd` and by every existing `gofips`/`gogl` workflow.
+
+Neither file carries anything a device cannot notice.
+
+### The `.lab` file
+
+```toml
+# lab definition, format 1 -- portable between UniFi and GL.iNet
+# written by gofi lab export home
+#
+# Radio tuning (channel, width, power) is deliberately absent: it is a property
+# of the building, not of the network. Each host picks its own.
+
+version = 1
+name    = "home"
+
+[network]
+address    = "192.168.8.1/24"     # the router's own address and prefix
+pool_start = "192.168.8.100"
+pool_end   = "192.168.8.149"
+domain     = "lab.example"
+lease      = "12h"                # advisory; see the table below
+
+[[wlan]]
+ssid       = "labnet"
+encryption = "wpa2"
+bands      = ["2.4", "5"]
+hidden     = false
+enabled    = true
+guest      = false
+# passphrase omitted by default; see Passphrases below
+
+[hosts]
+file = "home.hosts"
+```
+
+`version` is required. An unrecognised version is an error, not a warning: a file from a newer
+tool may carry a field this build would silently drop, and silently dropping part of a network
+is worse than refusing the file. Unknown keys are an error for the same reason.
+
+### `[network]`
+
+| Key | Required | UniFi | GL.iNet |
+|---|---|---|---|
+| `address` | yes | `ip_subnet` verbatim | `lan set --ip` + `--mask` |
+| `pool_start` | yes | `dhcpd_start` | `lan set --pool-start` |
+| `pool_end` | yes | `dhcpd_stop` | `lan set --pool-end` |
+| `domain` | yes | `domain_name` on the network | `lan dns set --domain` |
+| `lease` | no | `dhcpd_leasetime` | **advisory — cannot be written** |
+
+`address` is the router's own address with a prefix length, which is `ip_subnet` exactly as
+UniFi stores it, and trivially splits into `gogl`'s `--ip` and `--mask`. One field rather than a
+separate subnet, netmask and gateway, so there is nothing for a hand edit to make
+self-contradictory.
+
+`lease` is written by `gofi` and **ignored with a note by `gogl`**, which has no endpoint for it.
+It is in the file because the recommended way to handle every field `gogl` cannot write is to
+set the UniFi side to GL.iNet's default, and a value in the file is how you check that you did:
+
+| Field | GL.iNet default | Set on UniFi | In the file |
+|---|---|---|---|
+| Lease time | 12h | `dhcpd_leasetime: 43200` | `lease = "12h"` |
+| DHCP-advertised DNS | the router itself | `dhcpd_dns_enabled: false` | absent |
+| Advertised gateway | the router itself | `dhcpd_gateway_enabled: false` | absent |
+
+The last two are absent because there is no value to carry — "the router advertises itself" is
+the only state both can express, so both tools assert it and neither transmits it. `gofi lab
+import` sets those two fields to `false` unconditionally, and `gofi lab show` reports it when
+they are not.
+
+### `[[wlan]]`
+
+An array, so a lab can carry a main SSID and one restricted to 2.4 GHz for boards whose radios
+are 2.4-only — the common case for RP2040-class hardware.
+
+| Key | Required | Neutral values |
+|---|---|---|
+| `ssid` | yes | up to 32 characters |
+| `encryption` | yes | `open`, `wpa2`, `wpa2-wpa3`, `wpa3` |
+| `bands` | yes | any of `2.4`, `5`, `6` |
+| `hidden` | no, default `false` | |
+| `enabled` | no, default `true` | |
+| `guest` | no, default `false` | |
+| `passphrase` | no | see below |
+
+`encryption` uses a neutral vocabulary because neither device's spelling is portable:
+
+| `.lab` | UniFi | GL.iNet |
+|---|---|---|
+| `open` | `security: open` | `none` |
+| `wpa2` | `security: wpapsk`, `wpa_mode: wpa2` | `psk2` |
+| `wpa2-wpa3` | `security: wpapsk`, `wpa3_support: true`, `wpa3_transition: true` | `sae-mixed` |
+| `wpa3` | `security: wpapsk`, `wpa3_support: true` | `sae` |
+
+WPA/WPA2 mixed mode (`psk-mixed`) is deliberately unrepresentable. It exists for clients that
+predate WPA2, it weakens every client on the SSID, and a lab that needs it can set it by hand on
+both devices.
+
+**Band projection is the lossy part, in one direction only.** A UniFi WLAN spans bands; a
+GL.iNet interface is one band. So `bands = ["2.4", "5"]` is one WLAN on UniFi and two interfaces
+on GL.iNet, which is fine — the SSID and passphrase match, so a client roams between them
+without noticing. What does not fit is more than one non-guest WLAN on the same band: GL.iNet has
+exactly one main and one guest interface per band. `gogl lab import` reports and skips the
+excess rather than guessing which one matters; `gofi lab export` warns at export time, which is
+where the problem is cheaper to see.
+
+### Passphrases
+
+**Omitted by default.** `gofi lab export` writes no `passphrase` key, so a `.lab` file is safe to
+commit. `--with-keys` writes it in cleartext, matching `profile export`.
+
+**An omitted passphrase is not an empty passphrase.** On import a missing key is not written at
+all, leaving whatever the target already has — so the private default is also the safe one, and
+a first-time import onto a factory-reset router prompts rather than setting an empty key.
+
+A hand-added `passphrase_command` key is read the same way as the config file's, so a lab can
+live in git with its key in `pass`:
+
+```toml
+[[wlan]]
+ssid                = "labnet"
+passphrase_command  = "pass show lab/wifi"
+```
+
+### `gofi lab export NAME`
+
+Writes `NAME.lab` and `NAME.hosts`.
+
+| Flag | Meaning |
+|---|---|
+| `--with-keys` | Include WiFi passphrases in cleartext |
+| `--stdout` | Write the `.lab` file to stdout and skip the `.hosts` file |
+
+```bash
+gofi lab export home                 # home.lab + home.hosts, no passphrases
+git add home.lab home.hosts
+```
+
+The reservations half is `lan reservations export` with the same output, so the two commands
+never disagree about the format.
+
+### `gofi lab import NAME`
+
+Reads `NAME.lab`, and the `.hosts` file it names.
+
+| Flag | Meaning |
+|---|---|
+| `--create` | Create the network and any WLANs that do not exist |
+| `--wireless` | Apply the WLAN sections; needs a wired session |
+| `--prune` | Delete reservations on the controller but absent from the `.hosts` file |
+| `--force` | Allow a subnet move while reservations exist |
+| `--dry-run` | Show what would change without changing it |
+
+Applied in the same fixed order as `profile import`, and for the same reasons: domain, then
+network, then reservations, then DNS, then wireless last because it is the most likely to be
+refused and a refusal there must not undo the addressing.
+
+**All validation happens before connecting.** Both files parsed, `version` checked, unknown keys
+rejected, addresses checked for being IPv4, the pool checked for being inside the subnet, every
+host checked for a DNS-safe name and a valid MAC, and the whole set checked for duplicate names,
+MACs and addresses. A malformed pair never half-writes a controller.
+
+Hosts outside the `.lab` subnet are an error naming both, because it means the two files have
+drifted apart — the single most likely way to break a lab, and the reason the subnet lives in a
+file at all rather than in a comment.
+
+`--create` is off by default and needed only on a first run, where creating a network and a WLAN
+is the deliberate act of standing the lab up somewhere new. Without it, a missing network is an
+error naming the subnet it looked for.
+
+### `gofi lab show NAME`
+
+Diffs a lab definition against the controller without writing anything. Reports per section:
+matching, differing with both values, or absent. Exits 0 when the controller matches the
+definition and 1 when it does not, so it works as a check in CI or a pre-trip script:
+
+```bash
+gofi lab show home || echo "controller has drifted from home.lab"
+```
+
+This is what `--dry-run` would print, available without the intent to write.
+
+### What a lab deliberately cannot carry
+
+| Excluded | Why |
+|---|---|
+| Channel, width, transmit power | Properties of the building. A clear channel at home is occupied in a hotel |
+| VLAN tag | No concept on GL.iNet |
+| Firewall, routing, NAT, QoS, port forwarding | `gogl` writes none of it; a boundary one device cannot express makes the two non-equivalent |
+| AP groups, band steering, min RSSI, fast roaming, schedules | Multi-AP concepts with no counterpart on a single-radio router |
+| RADIUS, portals | Same |
+| mDNS, IGMP snooping, DHCP guard, ARP inspection | No counterpart, and no device notices |
+| DNS records | Materialised differently on each side; see below |
+| Any device identity | Serials, MACs of the infrastructure, adoption state, uptime |
+
+**DNS records are the interesting exclusion.** A lab carries hostnames and a domain, never
+records. UniFi auto-registers the bare name from the reservation and needs a static record only
+for the qualified form; GL.iNet's reservation names are inert and need explicit host-file entries
+for both forms. A shared list of records would therefore be wrong on arrival in both directions.
+The host declaration plus the domain carries the intent, and each tool materialises resolution
+its own way — which is exactly what `internal/dnsmgr` and `gogl`'s host-file writer already do.
 
 ---
 
@@ -1039,28 +1338,42 @@ session recoverable.
 
 ## Two things UniFi does that will surprise you
 
-### A reservation does not create a DNS record
+### A reservation half-creates a DNS record, and the half it creates cannot be overridden
 
 The admin panel shows a client with a Name and a fixed IP, so the Name reads as a DNS name. It
-is not. Resolution comes from static DNS records, which are separate objects reached through a
-different API version (`/v2/api/site/{site}/static-dns`) than the user records that hold fixed
-IPs (`/api/s/{site}/rest/user`).
+is — but only in its bare form. The controller auto-registers `nas` in device-local DNS from
+the reservation, governed by `local_dns_record_enabled` on the user record. It does not register
+`nas.lab.example`, and a Linux client running `systemd-resolved` qualifies a single-label
+lookup before sending it, so the bare record it did create is the one such clients never ask
+for. That is the defect
+[`utilities/docs/gofips/DESIGN-2026-07-18-fqdn-dns-and-set-force.md`](../utilities/docs/gofips/DESIGN-2026-07-18-fqdn-dns-and-set-force.md)
+was written to fix.
 
-Three separate things:
+Worse, the two mechanisms are not layered. A static record that collides with a device-local
+name is **rejected**, not preferred: `api.err.StaticDnsOverlapsWithDeviceLocalDns`. So you
+cannot correct a wrong device-local answer with a static record. The reservation is the only
+thing that can change it.
+
+Four separate things, not three:
 
 | What | Mechanism | Who controls it |
 |---|---|---|
 | The address a device receives | `use_fixedip` + `fixed_ip` on the user record | `gofi` |
-| A name that resolves | a static DNS A record | `gofi` |
+| The bare name, resolving | device-local DNS, auto-registered from the reservation | the controller |
+| The qualified name, resolving | a static DNS A record keyed on the FQDN | `gofi` |
 | A name a device announces | its DHCP lease hostname | the client |
 
-`gofi` writes both of the first two from one host declaration, so this is invisible in normal
-use. What it means in practice: the two objects can drift if something else edits them, which
-the next `import` repairs.
+`gofi` writes the first and third from one host declaration and lets the controller do the
+second, so this is invisible in normal use. What it means in practice: `dns add` must consult
+the controller's own resolver before writing, treat an overlap rejection as success when the
+answer is already right, and report drift rather than retry when it is not. `internal/dnsmgr`
+inherits this logic from `gofips`, where it is already implemented and hardware-tested.
 
-This is the same split `gogl` handles on GL.iNet, arrived at from a completely different
-direction. That both tools need it is why the ISC host declaration — one file, both facts —
-is the interchange format.
+**This is the opposite of GL.iNet**, where a reservation's name is inert and every resolving
+name must be written into the host file explicitly. Both tools therefore need the same *input*
+— one host declaration carrying name, MAC, and address — and produce resolution differently
+from it. That asymmetry is the reason the interchange format carries declarations rather than
+DNS records.
 
 ### A device round-trip drops fields the Go type does not model
 
@@ -1073,11 +1386,57 @@ cannot be built on `Update` as it stands. See below.
 
 ---
 
-## Required changes to `src/`
+## Library work
 
-The CLI needs three library changes. Everything else it needs already exists.
+Most of what the CLI needs already exists in `src/`. What it needs that does not exist is,
+with one exception, generic enough to belong there regardless of whether the CLI is ever built —
+which is the test from [The module is the product](#the-module-is-the-product) applied concretely.
 
-### 1. `types.RadioTable` gains its write fields
+### New exported packages
+
+Four packages, none of which has any UniFi dependency except the last, and all of which a
+third-party consumer has a plain reason to want:
+
+| Package | Contents | Lifted from |
+|---|---|---|
+| `src/hostfile` | ISC DHCP host declaration parse and emit, validation, IP-order sort | `utilities/gofips/parse.go`, `format.go` |
+| `src/oui` | IEEE OUI download, 30-day cache, parse, MAC lookup | `utilities/gofimac/oui.go` |
+| `src/lab` | The `.lab` TOML schema, the two-file pair, encryption and band mapping | new |
+| `src/netops` | Intent-level operations composed from services — see below | `utilities/gofips/operations.go` |
+
+`src/hostfile` and `src/oui` are lifts of code that is already written and already hardware-tested.
+They move as-is, gaining only exported names and package docs. Neither imports anything else in
+the module.
+
+`src/lab` is the interchange format. It belongs in the library because a format is a contract:
+anyone writing a tool that produces or consumes a lab definition needs to parse it, and having
+exactly one implementation of the encryption and band mapping tables is the difference between an
+interchange format and two programs that nearly agree.
+
+### `src/netops`: the operations layer
+
+The gap the current design has, and the reason `gofips` is 500 lines of `package main` that nobody
+else can call. Services are one endpoint each; real work is several endpoints plus knowledge of how
+the controller misbehaves. That knowledge is the module's most valuable content and it currently
+lives in a binary.
+
+Operations worth exporting, all of them already implemented inside `gofips` or specified in this
+document:
+
+- **Apply a host declaration** — resolve the owning network by subnet, write the fixed IP on the
+  user record, then reconcile DNS: consult the controller's own resolver, skip the static record
+  where device-local DNS already answers correctly, replace a stale bare-name record, treat an
+  overlap rejection as success, and report drift where device-local DNS answers wrongly. No
+  consumer should have to derive that twice.
+- **Diff and apply a set of declarations** — the four-phase ordering, idempotence, and drift
+  repair that `lan reservations import` needs.
+- **Apply a lab definition** — the ordered import, including stopping after the network step when
+  the subnet moves under a local session.
+- **Resolve a network by address** — subnet containment matching, used by every operation above.
+
+### Additions to existing services
+
+**`types.RadioTable` gains its write fields.**
 
 `src/types/device.go:158` currently models only capability and antenna fields — `radio`,
 `name`, `builtin_antenna`, `max_txpower`, `min_txpower`, `nss`, `radio_caps`, `has_dfs`. It
@@ -1088,74 +1447,118 @@ Add the configuration fields the controller accepts on a `radio_table` entry: `c
 `tx_power_mode`, `tx_power`, `min_rssi_enabled`, `min_rssi`, `hard_noise_floor_enabled`,
 `antenna_gain`, `channel_optimization_enabled`.
 
-### 2. `DeviceService` gains a merge-safe radio update
-
-A new method that reads the device, merges the named fields into the matching `radio_table`
-entry, and writes back — preserving unmodeled JSON rather than dropping it. Either by
-retaining raw JSON on `Device` and patching it, or by a `radio_table`-scoped `PUT`.
+**`DeviceService` gains a merge-safe radio update.** A method that reads the device, merges the
+named fields into the matching `radio_table` entry, and writes back — preserving unmodeled JSON
+rather than dropping it. Either by retaining raw JSON on `Device` and patching it, or by a
+`radio_table`-scoped `PUT`.
 
 `Update` keeps its current whole-struct semantics; this is an addition, not a change. Its
 docstring gains a warning about the round-trip, because the hazard exists for every caller and
 not just the CLI.
 
-### 3. Mock server coverage for the radio write
+**Mock server coverage for the radio write.** Per the project's critical rules, every endpoint the
+CLI exercises must be supported by the mock server with realistic responses, including rejection
+scenarios — an invalid channel is the important one, since the controller is the only thing that
+can validate a channel and tests must be able to make it say no.
 
-Per the project's critical rules, every endpoint the CLI exercises must be supported by the
-mock server with realistic responses, including rejection scenarios — an invalid channel is the
-important one, since the controller is the only thing that can validate a channel and tests
-must be able to make it say no.
+Networks, users, DNS records, WLANs, clients, sites and system status all have the service methods
+the CLI needs, and the `FlexInt`/`FlexBool` types already absorb UniFi's inconsistent JSON. No
+change is required to any of them.
 
-**No other library change is required.** Networks, users, DNS records, WLANs, clients, sites,
-and system status all have the service methods the CLI needs, and the `FlexInt`/`FlexBool`
-types already absorb UniFi's inconsistent JSON.
+### The one thing that stays out of the library
+
+`src/netops` operations report progress, and the CLI prints it. A library must not write to
+stderr, so progress is delivered as a callback or a channel of structured events, and the CLI
+formats them. `gofips` currently calls `fmt.Fprintf(os.Stderr, ...)` from inside its operation
+functions, which is exactly why they cannot be reused. That is the single change needed when
+lifting them.
 
 ---
 
 ## Package layout
 
+Three layers. The line between them is the rule from
+[The module is the product](#the-module-is-the-product): everything a second consumer would need
+is importable, and only policy and presentation are not.
+
+```mermaid
+graph TD
+    subgraph cli["utilities/gofi -- policy and presentation"]
+        cobra["cobra commands"]
+        pol["config · secret · output<br/>selector · guard"]
+    end
+    subgraph ops["src/netops -- intent-level operations"]
+        o["apply declaration · diff set<br/>apply lab · resolve network"]
+    end
+    subgraph svc["src/services -- one endpoint each"]
+        s["user · network · dns · wlan<br/>device · client · site · system"]
+    end
+    subgraph free["src/ -- no UniFi dependency"]
+        f["hostfile · oui · lab · types"]
+    end
+    cobra --> pol
+    pol --> o
+    pol --> f
+    o --> s
+    o --> f
+    other["any other program"] --> o
+    other --> f
 ```
+
+```
+src/                        # the module: importable by anyone
+  client.go, config.go, errors.go
+  types/                    # domain types
+  services/                 # one endpoint each (existing)
+  hostfile/                 # ISC DHCP host declarations: parse, emit, validate
+  oui/                      # IEEE OUI download, cache, parse, lookup
+  lab/                      # .lab schema, the file pair, encryption/band mapping
+  netops/                   # intent-level operations composed from services
+  mock/, auth/, transport/, websocket/, internal/
+
 utilities/
   gofi/                     # package main: cobra wiring only, no logic
     main.go                 # entry, exit-code mapping
     root.go                 # global flags, controller resolution, client construction
     lan.go                  # lan list/show/set/leases
-    reservations.go          # lan reservations *
+    reservations.go         # lan reservations *
     dns.go                  # lan dns *
     radio.go                # radio list/show/set
     wifi.go                 # wifi list/show/set
     clients.go              # clients list/vendor
     profile.go              # profile export/import
+    lab.go                  # lab export/import/show
     system.go               # system info
     config.go               # config show/controllers/init
-  internal/
+  internal/                 # CLI-only: unreachable by other programs, by design
     config/                 # TOML parse, XDG paths, flag/file/env precedence
     conn/                   # existing; extended to take a resolved config
     secret/                 # env -> command -> /dev/tty prompt
     output/                 # text/json writers, tabwriter helpers
-    selector/               # network, AP, radio, and WLAN resolution
-    reservations/           # ISC parse/format, diff, import phases
-    dnsmgr/                 # record pairing, managed-record scoping
-    radiocfg/               # radio read, merge, write
-    wificfg/                # WLAN read and field-wise write
-    clients/                # list, filter, sort, OUI download/cache/lookup
-    profile/                # schema, export, ordered import
-    guard/                  # the three guards and their sentinels
+    selector/               # network, AP, radio, and WLAN resolution from flags
+    guard/                  # the three guards, their sentinels, exit codes
 ```
 
-The split is not cosmetic. The project rule is that **every function must have a test** and
-tests run against the mock server, never real hardware. Cobra command functions are the one
-place that is awkward: they read global flag state, write to stdout, and call `os.Exit`. So
-they stay thin — parse flags, call one function in an `internal/` package, format the result —
-and every decision worth testing lives in a package that takes explicit arguments and returns
-values.
+Everything under `utilities/internal/` is there because it is **wrong** for a library, not
+because it is small:
 
-`internal/conn` already exists and already resolves credentials from the environment for the
+| Package | Why it must not be in `src/` |
+|---|---|
+| `config` | XDG paths and a `default` controller are a CLI's opinions about a user's home directory |
+| `secret` | A library must never prompt on `/dev/tty` |
+| `output` | A library must never write to stdout, and `tabwriter` widths are presentation |
+| `selector` | Resolving `--band` against `--ap` is flag semantics; a program passes an AP |
+| `guard` | Refusing a well-formed request is CLI policy. A program may move a subnet with reservations in place and take the consequences knowingly |
+
+`utilities/internal/conn` already exists and resolves credentials from the environment for the
 three current tools. It keeps that job and gains a config-file-shaped input.
 
-`internal/reservations` and `internal/clients` are lifts of existing, tested code:
-`utilities/gofips/parse.go`, `format.go`, `operations.go` and `utilities/gofimac/oui.go`,
-`format.go`. The ISC parser and the OUI cache are the two pieces of this design that are
-already written and proven against hardware. They move, they do not get rewritten.
+The split has a second payoff under the project's testing rules. **Every function must have a
+test**, and tests run against the mock server. Cobra command functions are the awkward case:
+they read global flag state, write to stdout, and call `os.Exit`. Keeping them thin — parse
+flags, call one `netops` operation, format the result — puts every decision worth testing in a
+package that takes explicit arguments and returns values, and it means the operations get tested
+once for both the CLI and every other consumer.
 
 The Makefile builds every directory under `utilities/` into `bin/`, so `gofi` is picked up with
 no Makefile change, and removing the three tools needs none either.
@@ -1176,8 +1579,12 @@ Specific to a CLI, and worth stating because they are easy to skip:
   are required together" rule gets a test that asserts exit code 2.
 - **Every guard, both ways.** Refused with the right sentinel and exit 3; allowed with
   `--force` where `--force` applies; and not overridable by `--yes` where it is not.
-- **Idempotence.** `reservations import` and `profile import` run twice against the mock, with
-  the second run asserted to make no writes.
+- **Idempotence.** `reservations import`, `profile import` and `lab import` run twice against the
+  mock, with the second run asserted to make no writes.
+- **Lab round-trip.** `lab export` then `lab import` against the mock leaves the controller
+  byte-identical, and `lab show` exits 0. A golden `.lab` file in testdata catches format drift.
+- **Encryption and band mapping**, every row of both tables, in both directions, including the
+  rejected cases: `psk-mixed` on input, and two non-guest WLANs on one band.
 - **`--dry-run` writes nothing.** Asserted at the transport layer, not by inspecting output.
 - **Text and JSON output** for every command that has both.
 - **Secret handling never echoes.** A passphrase or password must not appear in any output
@@ -1253,9 +1660,17 @@ items, in priority order.
    `deviceService.Update`; confirm by reading an AP, writing it back unchanged, and diffing the
    raw JSON. If the controller merges rather than replaces, change 2 above gets much simpler.
 
+4. **The WPA3 field combination.** The `encryption` mapping table asserts that `wpa3` is
+   `security: wpapsk` plus `wpa3_support: true`, and that transition mode adds
+   `wpa3_transition: true`. Inferred from `types.WLAN`, not observed. A wrong combination here
+   produces an SSID that clients silently fail to join, which is the worst failure mode in the
+   whole design. Verify before `lab import --wireless` ships.
+
 Also unverified, lower stakes: whether `domain_name` on a non-default network is handed out per
-network or ignored, and whether static DNS records are site-scoped or network-scoped — the
-latter decides whether `lan dns` output can be filtered by network at all, or only labelled.
+network or ignored, and whether static DNS records and device-local DNS registrations are
+site-scoped or network-scoped — the latter decides whether `lan dns` output can be filtered by
+network at all, or only labelled, and whether two labs can coexist on one controller under
+different domains.
 
 ---
 
