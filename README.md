@@ -596,3 +596,7 @@ MIT License.
 - Inspired by [paultyng/go-unifi](https://github.com/paultyng/go-unifi) (Terraform provider patterns)
 - Type patterns from [unpoller/unifi](https://github.com/unpoller/unifi) (FlexInt/FlexBool)
 - API patterns from [thib3113/unifi-client](https://github.com/thib3113/unifi-client) (TypeScript)
+
+---
+
+The Go gopher was designed by [Renée French](https://reneefrench.blogspot.com/) and is licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
