@@ -86,6 +86,30 @@ make examples       # build the example programs into ./bin/examples
 `make install` puts `gofips`, `gofimac`, and `gofinet` on your `PATH` (override the
 destination with `make install INSTALL_DIR=/somewhere/else`).
 
+## Migrating from the old tools
+
+`gofips`, `gofimac`, `gofinet`, `gofidns`, and `gofiuser` are replaced by one binary,
+`gofi`, as of this release. There are no wrapper binaries; update any script or cron
+job using the table below.
+
+| Old command | New command |
+|---|---|
+| `gofips -H <host> -k -g` | `gofi -H <host> --secure ips export` |
+| `gofips -H <host> -k -s <file>` | `gofi -H <host> --secure ips import <file>` |
+| `gofips -H <host> -k -a '<declaration>'` | `gofi -H <host> --secure ips add '<declaration>'` |
+| `gofips -H <host> -k -d -n <name>` | `gofi -H <host> --secure ips rm --name <name>` |
+| `gofips -H <host> -k -d -m <mac>` | `gofi -H <host> --secure ips rm --mac <mac>` |
+| `gofimac -H <host> -k --wifi` | `gofi -H <host> --secure clients list --wifi` |
+| `gofimac -H <host> -k --wired -j` | `gofi -H <host> --secure --output json clients list --wired` |
+| `gofinet -H <host> -k` | `gofi -H <host> --secure network list` |
+| `gofidns -H <host> -k -g` | `gofi -H <host> --secure dns list` |
+| `gofidns -H <host> -k -d -n <name>` | `gofi -H <host> --secure dns rm --name <name>` |
+| `gofiuser -H <host> -k -l` | `gofi -H <host> --secure users list` |
+| `gofiuser -H <host> -k -d -m <mac>` | `gofi -H <host> --secure users rm --mac <mac>` |
+
+`--target <name>` (via `gofi config init`) replaces repeating `-H`/`-k`/`-S` on every
+invocation.
+
 ## The utilities
 
 The three utilities support **both** auth modes described above; the API-key path is
