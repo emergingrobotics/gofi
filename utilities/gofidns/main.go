@@ -8,6 +8,7 @@ import (
 
 	gofi "github.com/unifi-go/gofi/src"
 	"github.com/unifi-go/gofi/utilities/internal/conn"
+	"github.com/unifi-go/gofi/utilities/internal/dns"
 )
 
 func main() {
@@ -75,7 +76,7 @@ func main() {
 		exitError(err.Error())
 	}
 
-	identifier := DeleteIdentifier{ID: *id, Name: *name, IP: *ip}
+	identifier := dns.DeleteIdentifier{ID: *id, Name: *name, IP: *ip}
 	if *del {
 		if err := validateIdentifier(identifier); err != nil {
 			exitError(err.Error())
@@ -110,13 +111,13 @@ func main() {
 
 	switch {
 	case *get:
-		options := FormatOptions{Writer: os.Stdout, JSON: *jsonOut}
-		if err := DoGet(ctx, apiClient, *site, options); err != nil {
+		options := dns.FormatOptions{Writer: os.Stdout, JSON: *jsonOut}
+		if err := dns.DoGet(ctx, apiClient, *site, options); err != nil {
 			exitError(err.Error())
 		}
 
 	case *del:
-		result, err := DoDel(ctx, apiClient, *site, identifier, *dryRun, *force, os.Stderr)
+		result, err := dns.DoDel(ctx, apiClient, *site, identifier, *dryRun, *force, os.Stderr)
 		if err != nil {
 			exitError(err.Error())
 		}
@@ -147,7 +148,7 @@ func validateModes(get, del bool) error {
 }
 
 // validateIdentifier enforces that exactly one delete identifier is given.
-func validateIdentifier(identifier DeleteIdentifier) error {
+func validateIdentifier(identifier dns.DeleteIdentifier) error {
 	count := 0
 	if identifier.ID != "" {
 		count++
