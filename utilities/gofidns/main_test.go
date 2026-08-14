@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/unifi-go/gofi/utilities/internal/dns"
+)
 
 func TestValidateModes(t *testing.T) {
 	tests := []struct {
@@ -28,15 +32,15 @@ func TestValidateModes(t *testing.T) {
 func TestValidateIdentifier(t *testing.T) {
 	tests := []struct {
 		name       string
-		identifier DeleteIdentifier
+		identifier dns.DeleteIdentifier
 		wantErr    bool
 	}{
-		{"id only", DeleteIdentifier{ID: "dns1"}, false},
-		{"name only", DeleteIdentifier{Name: "a.example.com"}, false},
-		{"ip only", DeleteIdentifier{IP: "192.168.1.1"}, false},
-		{"none", DeleteIdentifier{}, true},
-		{"id and name", DeleteIdentifier{ID: "dns1", Name: "a.example.com"}, true},
-		{"all three", DeleteIdentifier{ID: "dns1", Name: "a.example.com", IP: "192.168.1.1"}, true},
+		{"id only", dns.DeleteIdentifier{ID: "dns1"}, false},
+		{"name only", dns.DeleteIdentifier{Name: "a.example.com"}, false},
+		{"ip only", dns.DeleteIdentifier{IP: "192.168.1.1"}, false},
+		{"none", dns.DeleteIdentifier{}, true},
+		{"id and name", dns.DeleteIdentifier{ID: "dns1", Name: "a.example.com"}, true},
+		{"all three", dns.DeleteIdentifier{ID: "dns1", Name: "a.example.com", IP: "192.168.1.1"}, true},
 	}
 
 	for _, tt := range tests {
