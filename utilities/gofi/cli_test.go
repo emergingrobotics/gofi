@@ -96,6 +96,14 @@ func TestDNSRm_requiresExactlyOneIdentifier(t *testing.T) {
 	}
 }
 
+func TestUsersRm_requiresExactlyOneIdentifier(t *testing.T) {
+	cmd := newUsersCommand()
+	cmd.SetArgs([]string{"rm"})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("users rm with no identifier: error = nil, want a usage error")
+	}
+}
+
 func TestClientsList_rejectsWifiAndWiredTogether(t *testing.T) {
 	cmd := newClientsCommand()
 	cmd.SetArgs([]string{"list", "--wifi", "--wired"})
