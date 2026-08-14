@@ -79,6 +79,10 @@ func TestApply_skipsNetworksAbsentFromTarget(t *testing.T) {
 
 func TestApply_dryRunMakesNoWrites(t *testing.T) {
 	client := newMockClientRecordingWrites(t)
+	// DoSet's dry-run path still resolves the DNS domain from the target's
+	// networks before classifying entries, so the mock needs one network
+	// with a domain name even though it makes no writes.
+	client.networks.networks = []types.Network{{Name: "Default", IPSubnet: "192.168.1.0/24", DomainName: "lan.example.com"}}
 	p := &Profile{FixedIPs: []ips.HostEntry{{Hostname: "nas", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.13"}}}
 
 	if err := Apply(context.Background(), client, p, true, io.Discard); err != nil {
@@ -89,8 +93,43 @@ func TestApply_dryRunMakesNoWrites(t *testing.T) {
 	}
 }
 
+func TestApply_dryRunReportsRealDoSetCounts(t *testing.T) {
+	client := newMockClientWithNetworks(t, []types.Network{{Name: "Default", IPSubnet: "192.168.1.0/24", DomainName: "lan.example.com"}})
+	client.users = mockUserService{users: []types.User{
+		{MAC: "aa:bb:cc:dd:ee:01", Name: "nas", UseFixedIP: true, FixedIP: "192.168.1.13"},
+	}}
+	p := &Profile{
+		Site:     "default",
+		FixedIPs: []ips.HostEntry{{Hostname: "nas", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.13"}},
+	}
+	var progress bytes.Buffer
+	if err := Apply(context.Background(), client, p, true, &progress); err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	// The entry is already unchanged on the target, so a real DoSet dry run
+	// classifies it as skipped, not "would import."
+	if !strings.Contains(progress.String(), "1 skipped") {
+		t.Errorf("expected dry-run preview to reflect DoSet's real skip classification, got: %s", progress.String())
+	}
+}
+
+func TestApply_skipsWLANsAbsentFromTarget(t *testing.T) {
+	client := newMockClientWithWLAN(t, "office-wifi", "")
+	p := &Profile{
+		WLANs: []WLANEntry{{Name: "guest-wifi", Enabled: true}},
+	}
+	var progress bytes.Buffer
+	if err := Apply(context.Background(), client, p, false, &progress); err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	if !strings.Contains(progress.String(), "skipping WLAN \"guest-wifi\"") {
+		t.Errorf("expected Apply to report the skipped WLAN by name, got: %s", progress.String())
+	}
+}
+
 func TestApply_appliesNetworksBeforeFixedIPsBeforeWLANs(t *testing.T) {
 	client := newMockClientWithNetworks(t, []types.Network{{Name: "Default", IPSubnet: "192.168.1.0/24", DomainName: "lan.example.com"}})
+	client.wlans = mockWLANService{wlans: []types.WLAN{{Name: "guest-wifi", Enabled: true}}}
 	p := &Profile{
 		Networks: []network.NetworkEntry{{Name: "Default"}},
 		FixedIPs: []ips.HostEntry{{Hostname: "nas", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.13"}},

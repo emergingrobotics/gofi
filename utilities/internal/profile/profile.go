@@ -93,17 +93,17 @@ func ReadProfile(r io.Reader) (*Profile, error) {
 // somehow appears in a hand-edited profile file (I-PROFILE-001) -- Profile's
 // struct has no field for them, so there is nothing for Apply to read.
 func Apply(ctx context.Context, client gofi.Client, p *Profile, dryRun bool, progress io.Writer) error {
-	targetNetworks, err := network.ListNetworks(ctx, client, "default")
+	targetNetworks, err := network.ListNetworks(ctx, client, p.Site)
 	if err != nil {
 		return err
 	}
-	targetByName := make(map[string]network.NetworkEntry, len(targetNetworks))
+	targetNetworksByName := make(map[string]network.NetworkEntry, len(targetNetworks))
 	for _, n := range targetNetworks {
-		targetByName[n.Name] = n
+		targetNetworksByName[n.Name] = n
 	}
 
 	for _, n := range p.Networks {
-		if _, ok := targetByName[n.Name]; !ok {
+		if _, ok := targetNetworksByName[n.Name]; !ok {
 			fmt.Fprintf(progress, "skipping network %q: not present on the target site\n", n.Name)
 			continue
 		}
@@ -111,19 +111,32 @@ func Apply(ctx context.Context, client gofi.Client, p *Profile, dryRun bool, pro
 	}
 
 	if len(p.FixedIPs) > 0 {
-		if dryRun {
-			fmt.Fprintf(progress, "would import %d fixed-IP assignment(s)\n", len(p.FixedIPs))
-		} else {
-			result, err := ips.DoSet(ctx, client, "default", p.FixedIPs, "", false, false)
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(progress, "fixed IPs: %d created, %d updated, %d skipped, %d errors\n",
-				result.Created, result.Updated, result.Skipped, result.Errors)
+		result, err := ips.DoSet(ctx, client, p.Site, p.FixedIPs, "", dryRun, false)
+		if err != nil {
+			return err
 		}
+		verb := "fixed IPs"
+		if dryRun {
+			verb = "fixed IPs (dry run)"
+		}
+		fmt.Fprintf(progress, "%s: %d created, %d updated, %d skipped, %d errors\n",
+			verb, result.Created, result.Updated, result.Skipped, result.Errors)
+	}
+
+	targetWLANs, err := client.WLANs().List(ctx, p.Site)
+	if err != nil {
+		return err
+	}
+	targetWLANsByName := make(map[string]struct{}, len(targetWLANs))
+	for _, w := range targetWLANs {
+		targetWLANsByName[w.Name] = struct{}{}
 	}
 
 	for _, w := range p.WLANs {
+		if _, ok := targetWLANsByName[w.Name]; !ok {
+			fmt.Fprintf(progress, "skipping WLAN %q: not present on the target site\n", w.Name)
+			continue
+		}
 		if dryRun {
 			fmt.Fprintf(progress, "would apply WLAN %q\n", w.Name)
 			continue
