@@ -95,3 +95,11 @@ func TestDNSRm_requiresExactlyOneIdentifier(t *testing.T) {
 		t.Fatal("dns rm with no identifier: error = nil, want a usage error")
 	}
 }
+
+func TestNetworkShow_requiresOneArg(t *testing.T) {
+	cmd := newNetworkCommand()
+	cmd.SetArgs([]string{"show"})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("network show with no name: error = nil, want a usage error")
+	}
+}

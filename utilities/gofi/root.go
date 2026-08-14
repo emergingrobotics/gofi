@@ -72,9 +72,10 @@ reproducible from a file rather than from click history in the UniFi app.`,
 		newConfigCommand(),
 		newIPsCommand(),
 		newDNSCommand(),
+		newNetworkCommand(),
 	)
-	// newNetworkCommand(), newClientsCommand(), newUsersCommand(),
-	// newProfileCommand() are added by Phases 3-6.
+	// newClientsCommand(), newUsersCommand(), newProfileCommand() are added
+	// by Phases 4-6.
 	return root
 }
 
