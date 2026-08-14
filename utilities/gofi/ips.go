@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -26,6 +27,7 @@ and a DNS A record for the hostname. These commands keep the two in step.`,
 		newIPsImportCommand(),
 		newIPsAddCommand(),
 		newIPsRmCommand(),
+		newIPsClearCommand(),
 	)
 	return cmd
 }
@@ -207,6 +209,72 @@ func newIPsRmCommand() *cobra.Command {
 	f.BoolVar(&force, "force", false, "proceed past an ambiguous match")
 	f.BoolVar(&keepDNS, "keep-dns", false, "do not delete the associated DNS record")
 	f.BoolVar(&dryRun, "dry-run", false, "show what would change without changing it")
+	return cmd
+}
+
+func newIPsClearCommand() *cobra.Command {
+	var force, yes, dryRun bool
+	cmd := &cobra.Command{
+		Use:   "clear",
+		Short: "Remove every fixed-IP assignment on the site (--force required)",
+		Long: `Remove every fixed-IP assignment on the site.
+
+Hard-gated beyond a normal write: --force is mandatory (there is no bare
+invocation that deletes everything), the full list of what would be removed
+is printed before the confirmation prompt, and --yes only skips that prompt
+-- it never substitutes for --force. gofi manages shared infrastructure, so
+this verb needs a stronger floor than a disposable bench router's equivalent
+(C-IPS-007, C-IPS-008).`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if !force {
+				return fmt.Errorf("%w: --force is required; this removes every fixed-IP assignment on the site", errUsage)
+			}
+
+			client, err := connect()
+			if err != nil {
+				return err
+			}
+			defer client.Disconnect(cmd.Context())
+
+			preview, err := ips.DoClear(cmd.Context(), client, siteFlag(), true)
+			if err != nil {
+				return explain(err)
+			}
+			if len(preview) == 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), "no fixed-IP assignments to remove")
+				return nil
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "This will remove %d fixed-IP assignment(s):\n", len(preview))
+			for _, entry := range preview {
+				fmt.Fprintf(cmd.OutOrStdout(), "  %s\t%s\t%s\n", entry.Hostname, entry.MAC, entry.IP)
+			}
+
+			if dryRun {
+				return nil
+			}
+			if !yes {
+				fmt.Fprint(cmd.OutOrStdout(), "Proceed? [y/N] ")
+				var response string
+				fmt.Fscanln(cmd.InOrStdin(), &response)
+				if strings.ToLower(strings.TrimSpace(response)) != "y" {
+					return fmt.Errorf("%w: not confirmed", errRefused)
+				}
+			}
+
+			removed, err := ips.DoClear(cmd.Context(), client, siteFlag(), false)
+			if err != nil {
+				return explain(err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "removed %d fixed-IP assignment(s)\n", len(removed))
+			return nil
+		},
+	}
+	f := cmd.Flags()
+	f.BoolVar(&force, "force", false, "required: acknowledges this removes every fixed-IP assignment")
+	f.BoolVar(&yes, "yes", false, "skip the confirmation prompt (still requires --force)")
+	f.BoolVar(&dryRun, "dry-run", false, "show what would be removed without removing it")
 	return cmd
 }
 

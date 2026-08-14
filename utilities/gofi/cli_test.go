@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -63,6 +64,18 @@ func TestIPsRm_requiresExactlyOneIdentifier(t *testing.T) {
 	cmd.SetArgs([]string{"rm"})
 	if err := cmd.Execute(); err == nil {
 		t.Fatal("ips rm with no identifier: error = nil, want a usage error")
+	}
+}
+
+func TestIPsClear_refusesWithoutForce(t *testing.T) {
+	cmd := newIPsCommand()
+	cmd.SetArgs([]string{"clear"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("ips clear without --force: error = nil, want a refusal")
+	}
+	if !errors.Is(err, errUsage) && !errors.Is(err, errRefused) {
+		t.Errorf("ips clear without --force: error = %v, want errUsage or errRefused", err)
 	}
 }
 
