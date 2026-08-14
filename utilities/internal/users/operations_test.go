@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"strings"
 	"testing"
 
@@ -317,5 +318,20 @@ func TestDoDelNoMatch(t *testing.T) {
 	var progress bytes.Buffer
 	if _, err := DoDel(context.Background(), client, "default", DeleteIdentifier{MAC: "ff:ff:ff:ff:ff:ff"}, false, &progress); err == nil {
 		t.Fatal("Expected an error when nothing matches")
+	}
+}
+
+func TestFindUser_ambiguousNameIsErrAmbiguous(t *testing.T) {
+	dup := []types.User{{Name: "phone"}, {Name: "phone"}}
+	_, err := findUser(dup, DeleteIdentifier{Name: "phone"})
+	if !errors.Is(err, ErrAmbiguous) {
+		t.Errorf("findUser() error = %v, want ErrAmbiguous", err)
+	}
+}
+
+func TestFindUser_noMatchIsErrNotFound(t *testing.T) {
+	_, err := findUser(nil, DeleteIdentifier{MAC: "aa:bb:cc:dd:ee:ff"})
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("findUser() error = %v, want ErrNotFound", err)
 	}
 }

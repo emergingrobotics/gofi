@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -9,6 +10,14 @@ import (
 
 	gofi "github.com/unifi-go/gofi/src"
 	"github.com/unifi-go/gofi/src/types"
+)
+
+var (
+	// ErrNotFound means the identifier matched nothing (exit 1: a real error).
+	ErrNotFound = errors.New("no matching user")
+	// ErrAmbiguous means the identifier matched more than one user
+	// (exit 3: a guard refusal).
+	ErrAmbiguous = errors.New("ambiguous match")
 )
 
 // UserEntry is the flattened view of a known-client record that gofiuser
@@ -120,10 +129,10 @@ func findUser(users []types.User, identifier DeleteIdentifier) (*types.User, err
 	}
 
 	if len(matches) == 0 {
-		return nil, fmt.Errorf("no client found for %s", describeIdentifier(identifier))
+		return nil, fmt.Errorf("%w: no client found for %s", ErrNotFound, describeIdentifier(identifier))
 	}
 	if len(matches) > 1 {
-		return nil, fmt.Errorf("%s matches %d clients; use --mac to disambiguate", describeIdentifier(identifier), len(matches))
+		return nil, fmt.Errorf("%w: %s matches %d clients; use --mac to disambiguate", ErrAmbiguous, describeIdentifier(identifier), len(matches))
 	}
 
 	return matches[0], nil
