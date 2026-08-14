@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/unifi-go/gofi/utilities/internal/users"
+)
 
 func TestValidateModes(t *testing.T) {
 	tests := []struct {
@@ -28,13 +32,13 @@ func TestValidateModes(t *testing.T) {
 func TestValidateIdentifier(t *testing.T) {
 	tests := []struct {
 		name       string
-		identifier DeleteIdentifier
+		identifier users.DeleteIdentifier
 		wantErr    bool
 	}{
-		{"mac only", DeleteIdentifier{MAC: "aa:bb:cc:dd:ee:ff"}, false},
-		{"name only", DeleteIdentifier{Name: "tapo1"}, false},
-		{"none", DeleteIdentifier{}, true},
-		{"both", DeleteIdentifier{MAC: "aa:bb:cc:dd:ee:ff", Name: "tapo1"}, true},
+		{"mac only", users.DeleteIdentifier{MAC: "aa:bb:cc:dd:ee:ff"}, false},
+		{"name only", users.DeleteIdentifier{Name: "tapo1"}, false},
+		{"none", users.DeleteIdentifier{}, true},
+		{"both", users.DeleteIdentifier{MAC: "aa:bb:cc:dd:ee:ff", Name: "tapo1"}, true},
 	}
 
 	for _, tt := range tests {

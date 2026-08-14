@@ -8,6 +8,7 @@ import (
 
 	gofi "github.com/unifi-go/gofi/src"
 	"github.com/unifi-go/gofi/utilities/internal/conn"
+	"github.com/unifi-go/gofi/utilities/internal/users"
 )
 
 func main() {
@@ -72,7 +73,7 @@ func main() {
 		exitError(err.Error())
 	}
 
-	identifier := DeleteIdentifier{MAC: *mac, Name: *name}
+	identifier := users.DeleteIdentifier{MAC: *mac, Name: *name}
 	if *del {
 		if err := validateIdentifier(identifier); err != nil {
 			exitError(err.Error())
@@ -107,13 +108,13 @@ func main() {
 
 	switch {
 	case *list:
-		options := FormatOptions{Writer: os.Stdout, JSON: *jsonOut}
-		if err := DoList(ctx, apiClient, *site, *filter, options); err != nil {
+		options := users.FormatOptions{Writer: os.Stdout, JSON: *jsonOut}
+		if err := users.DoList(ctx, apiClient, *site, *filter, options); err != nil {
 			exitError(err.Error())
 		}
 
 	case *del:
-		result, err := DoDel(ctx, apiClient, *site, identifier, *dryRun, os.Stderr)
+		result, err := users.DoDel(ctx, apiClient, *site, identifier, *dryRun, os.Stderr)
 		if err != nil {
 			exitError(err.Error())
 		}
@@ -141,7 +142,7 @@ func validateModes(list, del bool) error {
 }
 
 // validateIdentifier enforces that exactly one delete identifier is given.
-func validateIdentifier(identifier DeleteIdentifier) error {
+func validateIdentifier(identifier users.DeleteIdentifier) error {
 	count := 0
 	if identifier.MAC != "" {
 		count++
