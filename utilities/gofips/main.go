@@ -12,6 +12,7 @@ import (
 
 	"github.com/unifi-go/gofi/src"
 	"github.com/unifi-go/gofi/utilities/internal/conn"
+	"github.com/unifi-go/gofi/utilities/internal/ips"
 )
 
 func main() {
@@ -119,8 +120,8 @@ func main() {
 	*host = config.Host
 
 	// For --set and --add, parse input before connecting
-	var parsedEntries []HostEntry
-	var singleEntry *HostEntry
+	var parsedEntries []ips.HostEntry
+	var singleEntry *ips.HostEntry
 
 	if *set {
 		result, err := parseSetInput(flag.Args())
@@ -155,7 +156,7 @@ func main() {
 
 	// Install the live resolver pointed at the UDM itself, so DNS existence
 	// checks see device-local (DHCP) DNS as well as static records.
-	resolveFQDN = func(ctx context.Context, fqdn string) ([]string, error) {
+	ips.ResolveFQDN = func(ctx context.Context, fqdn string) ([]string, error) {
 		resolver := &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
@@ -191,16 +192,16 @@ func main() {
 	// Dispatch
 	switch {
 	case *get:
-		opts := FormatOptions{
+		opts := ips.FormatOptions{
 			Host: *host,
 			Date: time.Now().Format("2006-01-02"),
 		}
-		if err := DoGet(ctx, client, *site, *dnsDomain, os.Stdout, opts); err != nil {
+		if err := ips.DoGet(ctx, client, *site, *dnsDomain, os.Stdout, opts); err != nil {
 			exitError(err.Error())
 		}
 
 	case *set:
-		result, err := DoSet(ctx, client, *site, parsedEntries, *dnsDomain, *dryRun, *force)
+		result, err := ips.DoSet(ctx, client, *site, parsedEntries, *dnsDomain, *dryRun, *force)
 		if err != nil {
 			exitError(err.Error())
 		}
@@ -211,19 +212,19 @@ func main() {
 		}
 
 	case *add:
-		if err := DoAdd(ctx, client, *site, singleEntry, *dnsDomain, *force); err != nil {
+		if err := ips.DoAdd(ctx, client, *site, singleEntry, *dnsDomain, *force); err != nil {
 			exitError(err.Error())
 		}
 
 	case *del:
-		identifier := DeleteIdentifier{Name: *name, MAC: *mac, IP: *ip}
-		if err := DoDel(ctx, client, *site, identifier, *dnsDomain, *force, *keepDNS); err != nil {
+		identifier := ips.DeleteIdentifier{Name: *name, MAC: *mac, IP: *ip}
+		if err := ips.DoDel(ctx, client, *site, identifier, *dnsDomain, *force, *keepDNS); err != nil {
 			exitError(err.Error())
 		}
 	}
 }
 
-func parseSetInput(args []string) (*ParseResult, error) {
+func parseSetInput(args []string) (*ips.ParseResult, error) {
 	var reader io.Reader
 	if len(args) > 0 {
 		file, err := os.Open(args[0])
@@ -237,15 +238,15 @@ func parseSetInput(args []string) (*ParseResult, error) {
 		fmt.Fprintf(os.Stderr, "Reading from stdin\n")
 		reader = os.Stdin
 	}
-	return Parse(reader)
+	return ips.Parse(reader)
 }
 
-func parseAddInput(args []string) (*HostEntry, error) {
+func parseAddInput(args []string) (*ips.HostEntry, error) {
 	if len(args) > 0 {
-		return ParseSingle(strings.Join(args, " "))
+		return ips.ParseSingle(strings.Join(args, " "))
 	}
 	// Read from stdin
-	result, err := Parse(os.Stdin)
+	result, err := ips.Parse(os.Stdin)
 	if err != nil {
 		return nil, err
 	}

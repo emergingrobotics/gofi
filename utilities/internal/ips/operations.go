@@ -1,4 +1,4 @@
-package main
+package ips
 
 import (
 	"context"
@@ -67,7 +67,7 @@ func DoGet(ctx context.Context, client gofi.Client, site, dnsDomainOverride stri
 		// fixed IP means DNS and the reservation disagree.
 		if domainErr == nil {
 			fqdn := hostname + "." + domain
-			if addrs, _ := resolveFQDN(ctx, fqdn); len(addrs) > 0 && !containsString(addrs, user.FixedIP) {
+			if addrs, _ := ResolveFQDN(ctx, fqdn); len(addrs) > 0 && !containsString(addrs, user.FixedIP) {
 				fmt.Fprintf(os.Stderr, "  warning: %s resolves to %s (drift from fixed IP %s)\n", fqdn, strings.Join(addrs, ","), user.FixedIP)
 			}
 		}
@@ -424,10 +424,10 @@ func findUserByIdentifier(ctx context.Context, client gofi.Client, site string, 
 // way to see device-local entries, which are invisible to the static-record API.
 type dnsResolver func(ctx context.Context, fqdn string) ([]string, error)
 
-// resolveFQDN is the live UDM resolver. main() installs one pointed at the UDM;
+// ResolveFQDN is the live UDM resolver. main() installs one pointed at the UDM;
 // the default treats every name as unresolved so tests and misconfiguration fall
 // back to attempting a static record rather than silently skipping.
-var resolveFQDN dnsResolver = func(ctx context.Context, fqdn string) ([]string, error) {
+var ResolveFQDN dnsResolver = func(ctx context.Context, fqdn string) ([]string, error) {
 	return nil, nil
 }
 
@@ -554,7 +554,7 @@ func (r *dnsReconciler) ensure(ctx context.Context, hostname, ipAddress string) 
 	}
 
 	// No static record. Consult the UDM's live view (device-local DNS + static).
-	addrs, _ := resolveFQDN(ctx, fqdn)
+	addrs, _ := ResolveFQDN(ctx, fqdn)
 	if containsString(addrs, ipAddress) {
 		fmt.Fprintf(os.Stderr, "    ok: %s already resolves to %s (device local DNS)\n", fqdn, ipAddress)
 		return nil

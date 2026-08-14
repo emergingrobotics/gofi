@@ -1,4 +1,4 @@
-package main
+package ips
 
 import (
 	"bytes"
@@ -15,9 +15,9 @@ import (
 
 // setResolver installs a stub UDM resolver for the duration of a test.
 func setResolver(t *testing.T, fn dnsResolver) {
-	prev := resolveFQDN
-	resolveFQDN = fn
-	t.Cleanup(func() { resolveFQDN = prev })
+	prev := ResolveFQDN
+	ResolveFQDN = fn
+	t.Cleanup(func() { ResolveFQDN = prev })
 }
 
 // unresolvedResolver simulates the UDM answering NXDOMAIN for every name.
