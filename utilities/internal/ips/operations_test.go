@@ -491,7 +491,7 @@ func TestDoDel_ByMAC(t *testing.T) {
 	}
 
 	id := DeleteIdentifier{MAC: "aa:bb:cc:dd:ee:ff"}
-	err := DoDel(context.Background(), client, "default", id, "", false, false)
+	err := DoDel(context.Background(), client, "default", id, "", false, false, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -510,7 +510,7 @@ func TestDoDel_ByIP(t *testing.T) {
 	}
 
 	id := DeleteIdentifier{IP: "192.168.1.10"}
-	err := DoDel(context.Background(), client, "default", id, "", false, false)
+	err := DoDel(context.Background(), client, "default", id, "", false, false, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -523,7 +523,7 @@ func TestDoDel_ByName(t *testing.T) {
 	}
 
 	id := DeleteIdentifier{Name: "myhost"}
-	err := DoDel(context.Background(), client, "default", id, "", false, false)
+	err := DoDel(context.Background(), client, "default", id, "", false, false, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -532,7 +532,7 @@ func TestDoDel_ByName(t *testing.T) {
 func TestDoDel_NotFound(t *testing.T) {
 	client := newTestClient()
 	id := DeleteIdentifier{MAC: "aa:bb:cc:dd:ee:ff"}
-	err := DoDel(context.Background(), client, "default", id, "", false, false)
+	err := DoDel(context.Background(), client, "default", id, "", false, false, false)
 	if err == nil {
 		t.Fatal("expected not found error")
 	}
@@ -548,12 +548,42 @@ func TestDoDel_KeepDNS(t *testing.T) {
 	}
 
 	id := DeleteIdentifier{MAC: "aa:bb:cc:dd:ee:ff"}
-	err := DoDel(context.Background(), client, "default", id, "", false, true)
+	err := DoDel(context.Background(), client, "default", id, "", false, true, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(client.dns.records) != 1 {
 		t.Error("DNS record should be preserved with --keep-dns")
+	}
+}
+
+func TestDoDel_DryRunMakesNoChanges(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:ff", Name: "myhost", UseFixedIP: true, FixedIP: "192.168.1.10"},
+	}
+	client.dns.records = []types.DNSRecord{
+		{ID: "d1", Key: "myhost", Value: "192.168.1.10", RecordType: "A", Enabled: true},
+	}
+
+	id := DeleteIdentifier{MAC: "aa:bb:cc:dd:ee:ff"}
+	err := DoDel(context.Background(), client, "default", id, "", false, false, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	user, err := findUserByIdentifier(context.Background(), client, "default", id)
+	if err != nil {
+		t.Fatalf("unexpected error looking up user after dry-run: %v", err)
+	}
+	if !user.UseFixedIP {
+		t.Error("dry-run should not clear the fixed IP")
+	}
+	if user.FixedIP != "192.168.1.10" {
+		t.Errorf("fixed IP = %q, want unchanged 192.168.1.10", user.FixedIP)
+	}
+	if len(client.dns.records) != 1 {
+		t.Errorf("DNS record count = %d, want 1 (dry-run should not delete it)", len(client.dns.records))
 	}
 }
 
@@ -881,7 +911,7 @@ func TestDoDel_RemovesRecordAtStaleAddress(t *testing.T) {
 	}
 
 	id := DeleteIdentifier{Name: "gone"}
-	if err := DoDel(context.Background(), client, "default", id, "", false, false); err != nil {
+	if err := DoDel(context.Background(), client, "default", id, "", false, false, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(client.dns.records) != 0 {

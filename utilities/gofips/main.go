@@ -218,7 +218,7 @@ func main() {
 
 	case *del:
 		identifier := ips.DeleteIdentifier{Name: *name, MAC: *mac, IP: *ip}
-		if err := ips.DoDel(ctx, client, *site, identifier, *dnsDomain, *force, *keepDNS); err != nil {
+		if err := ips.DoDel(ctx, client, *site, identifier, *dnsDomain, *force, *keepDNS, *dryRun); err != nil {
 			exitError(err.Error())
 		}
 	}

@@ -298,7 +298,7 @@ func DoAdd(ctx context.Context, client gofi.Client, site string, entry *HostEntr
 	return nil
 }
 
-func DoDel(ctx context.Context, client gofi.Client, site string, identifier DeleteIdentifier, dnsDomainOverride string, force, keepDNS bool) error {
+func DoDel(ctx context.Context, client gofi.Client, site string, identifier DeleteIdentifier, dnsDomainOverride string, force, keepDNS, dryRun bool) error {
 	user, err := findUserByIdentifier(ctx, client, site, identifier)
 	if err != nil {
 		return err
@@ -307,6 +307,18 @@ func DoDel(ctx context.Context, client gofi.Client, site string, identifier Dele
 	userName := displayName(user)
 
 	fmt.Printf("Found: %s %s %s\n", userName, user.MAC, user.FixedIP)
+
+	if dryRun {
+		if force {
+			fmt.Printf("  Would delete user entry for %s\n", userName)
+		} else {
+			fmt.Printf("  Would remove fixed IP assignment\n")
+		}
+		if !keepDNS {
+			fmt.Printf("  Would delete DNS record(s) for %s -> %s\n", resolveHostname(*user), user.FixedIP)
+		}
+		return nil
+	}
 
 	if !keepDNS {
 		// Matching on the hostname as well as the address catches records left

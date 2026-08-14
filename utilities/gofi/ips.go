@@ -196,7 +196,7 @@ func newIPsRmCommand() *cobra.Command {
 			defer client.Disconnect(cmd.Context())
 
 			identifier := ips.DeleteIdentifier{Name: name, MAC: mac, IP: ip}
-			return explain(ips.DoDel(cmd.Context(), client, siteFlag(), identifier, dnsDomain, force, keepDNS))
+			return explain(ips.DoDel(cmd.Context(), client, siteFlag(), identifier, dnsDomain, force, keepDNS, dryRun))
 		},
 	}
 	f := cmd.Flags()
