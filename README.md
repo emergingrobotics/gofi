@@ -7,8 +7,8 @@
 
 Programmatic control of Ubiquiti UniFi UDM Pro devices. This repository is two things:
 
-- **Command-line programs** — ready-to-run tools (`gofips`, `gofimac`, `gofinet`) and
-  example programs for managing fixed IPs, listing clients, inspecting networks, and more.
+- **Command-line program** — a unified tool (`gofi`) with subcommands for managing fixed IPs,
+  listing clients, inspecting networks, and more.
 - **A Go module (SDK)** — a type-safe, concurrent-safe client library you can import into
   your own programs.
 
@@ -24,8 +24,7 @@ controller, jump to **[Part 2: Using gofi in your Go program](#part-2-using-gofi
 
 gofi supports two ways to authenticate. A **cloud API key** used through Ubiquiti's Site
 Manager connector is the recommended one: it works even when the controller isn't directly
-reachable on your LAN, needs no session cookies, and is what all three utilities use by
-default.
+reachable on your LAN, needs no session cookies, and is the preferred authentication method.
 
 **Create the key:**
 
@@ -83,8 +82,19 @@ make utilities      # or just build them into ./bin
 make examples       # build the example programs into ./bin/examples
 ```
 
-`make install` puts `gofips`, `gofimac`, and `gofinet` on your `PATH` (override the
-destination with `make install INSTALL_DIR=/somewhere/else`).
+`make install` puts `gofi` on your `PATH` (override the destination with `make install INSTALL_DIR=/somewhere/else`).
+
+## Step 3 — Shell completion (optional)
+
+Shell completion is built in. Install it for faster command entry:
+
+```bash
+gofi completion bash | sudo tee /etc/bash_completion.d/gofi > /dev/null
+# or
+gofi completion zsh | sudo tee /usr/local/share/zsh/site-functions/_gofi > /dev/null
+```
+
+Available shells: `bash`, `zsh`, `fish`, `powershell`.
 
 ## Migrating from the old tools
 
@@ -126,7 +136,7 @@ examples by adding hostname and DNS support.
 **Export current assignments** (dump to disk, edit, push back):
 
 ```bash
-gofips --get > hosts.conf
+gofi ips export > hosts.conf
 ```
 
 Assignments are emitted sorted by IP, where the `host <name>` label is the DNS name:
@@ -149,8 +159,8 @@ host printer {
 **Import (bulk provision) from a file or stdin:**
 
 ```bash
-gofips --set hosts.conf
-cat hosts.conf | gofips --set
+gofi ips import hosts.conf
+cat hosts.conf | gofi ips import
 ```
 
 Input is fully validated before any change is made; unchanged entries are skipped, and the
@@ -159,8 +169,8 @@ network for each IP is auto-detected from configured subnets. Add `--dry-run` to
 **Add or delete a single host:**
 
 ```bash
-gofips --add 'host mydev { hardware ethernet aa:bb:cc:dd:ee:ff; fixed-address 192.168.1.50; }'
-gofips --del --name mydev   # or --mac / --ip
+gofi ips add 'host mydev { hardware ethernet aa:bb:cc:dd:ee:ff; fixed-address 192.168.1.50; }'
+gofi ips rm --name mydev   # or --mac / --ip
 ```
 
 | Flag | Short | Description |
@@ -192,10 +202,10 @@ Lists connected clients (wired, WiFi, or all) with manufacturer identification l
 independently from the IEEE OUI database rather than the UDM's built-in fingerprinting.
 
 ```bash
-gofimac              # all connected clients (default)
-gofimac --wifi       # WiFi clients only
-gofimac --wired      # wired clients only
-gofimac --json       # JSON output
+gofi clients list              # all connected clients (default)
+gofi clients list --wifi       # WiFi clients only
+gofi clients list --wired      # wired clients only
+gofi --output json clients list  # JSON output
 ```
 
 Text output is tab-separated (MAC, IP, hostname, manufacturer), sorted by IP:
@@ -226,11 +236,11 @@ See [utilities/gofimac/README.md](./utilities/gofimac/README.md) and
 ### gofinet — networks, subnets, and DHCP pools
 
 Lists networks with their subnet and DHCP dynamic address pool, so you know which addresses
-are safe for static reservations. It is the companion to `gofips`.
+are safe for static reservations. It is the companion to `gofi ips`.
 
 ```bash
-gofinet         # all networks
-gofinet -j      # JSON output
+gofi network list              # all networks
+gofi --output json network list  # JSON output
 ```
 
 ```
