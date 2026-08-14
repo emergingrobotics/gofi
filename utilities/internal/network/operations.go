@@ -2,6 +2,8 @@ package network
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sort"
 
 	"github.com/unifi-go/gofi/src"
@@ -81,4 +83,21 @@ func collectDNS(network types.Network) []string {
 		return nil
 	}
 	return servers
+}
+
+// ErrNotFound means no network on the site matched the given name (C-NETWORK-003).
+var ErrNotFound = errors.New("no matching network")
+
+// FindByName reports one network's full detail by exact name match.
+func FindByName(ctx context.Context, client gofi.Client, site, name string) (*NetworkEntry, error) {
+	entries, err := ListNetworks(ctx, client, site)
+	if err != nil {
+		return nil, err
+	}
+	for i := range entries {
+		if entries[i].Name == name {
+			return &entries[i], nil
+		}
+	}
+	return nil, fmt.Errorf("%w: %q", ErrNotFound, name)
 }

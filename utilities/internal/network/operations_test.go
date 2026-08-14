@@ -1,8 +1,12 @@
 package network
 
 import (
+	"context"
+	"errors"
 	"testing"
 
+	"github.com/unifi-go/gofi/src"
+	"github.com/unifi-go/gofi/src/services"
 	"github.com/unifi-go/gofi/src/types"
 )
 
@@ -81,4 +85,130 @@ func TestCollectDNS(t *testing.T) {
 	if collectDNS(types.Network{}) != nil {
 		t.Error("expected nil for no DNS servers")
 	}
+}
+
+func TestFindByName_returnsErrNotFoundForUnknownNetwork(t *testing.T) {
+	client := newMockClientWithNetworks(t, []types.Network{{Name: "Default"}})
+	_, err := FindByName(context.Background(), client, "default", "nonexistent")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("FindByName() error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestFindByName_findsExactMatch(t *testing.T) {
+	client := newMockClientWithNetworks(t, []types.Network{{Name: "Guest"}, {Name: "Default"}})
+	entry, err := FindByName(context.Background(), client, "default", "Guest")
+	if err != nil {
+		t.Fatalf("FindByName() error = %v", err)
+	}
+	if entry.Name != "Guest" {
+		t.Errorf("Name = %q, want Guest", entry.Name)
+	}
+}
+
+// newMockClientWithNetworks returns a mock client that returns the given networks list.
+func newMockClientWithNetworks(t *testing.T, networks []types.Network) gofi.Client {
+	return &mockClient{
+		networkService: &mockNetworkService{
+			networks: networks,
+		},
+	}
+}
+
+// mockClient implements a minimal gofi.Client for testing.
+type mockClient struct {
+	networkService *mockNetworkService
+}
+
+func (m *mockClient) Connect(ctx context.Context) error {
+	return nil
+}
+
+func (m *mockClient) Disconnect(ctx context.Context) error {
+	return nil
+}
+
+func (m *mockClient) IsConnected() bool {
+	return true
+}
+
+func (m *mockClient) Sites() services.SiteService {
+	return nil
+}
+
+func (m *mockClient) Devices() services.DeviceService {
+	return nil
+}
+
+func (m *mockClient) Networks() services.NetworkService {
+	return m.networkService
+}
+
+func (m *mockClient) WLANs() services.WLANService {
+	return nil
+}
+
+func (m *mockClient) Firewall() services.FirewallService {
+	return nil
+}
+
+func (m *mockClient) Clients() services.ClientService {
+	return nil
+}
+
+func (m *mockClient) Users() services.UserService {
+	return nil
+}
+
+func (m *mockClient) Routing() services.RoutingService {
+	return nil
+}
+
+func (m *mockClient) PortForwards() services.PortForwardService {
+	return nil
+}
+
+func (m *mockClient) PortProfiles() services.PortProfileService {
+	return nil
+}
+
+func (m *mockClient) Settings() services.SettingService {
+	return nil
+}
+
+func (m *mockClient) System() services.SystemService {
+	return nil
+}
+
+func (m *mockClient) Events() services.EventService {
+	return nil
+}
+
+func (m *mockClient) DNS() services.DNSService {
+	return nil
+}
+
+// mockNetworkService implements a minimal services.NetworkService for testing.
+type mockNetworkService struct {
+	networks []types.Network
+}
+
+func (m *mockNetworkService) List(ctx context.Context, site string) ([]types.Network, error) {
+	return m.networks, nil
+}
+
+func (m *mockNetworkService) Get(ctx context.Context, site, id string) (*types.Network, error) {
+	return nil, nil
+}
+
+func (m *mockNetworkService) Create(ctx context.Context, site string, network *types.Network) (*types.Network, error) {
+	return nil, nil
+}
+
+func (m *mockNetworkService) Update(ctx context.Context, site string, network *types.Network) (*types.Network, error) {
+	return nil, nil
+}
+
+func (m *mockNetworkService) Delete(ctx context.Context, site, id string) error {
+	return nil
 }
