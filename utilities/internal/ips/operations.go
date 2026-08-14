@@ -25,10 +25,13 @@ type DeleteIdentifier struct {
 	IP   string
 }
 
-func DoGet(ctx context.Context, client gofi.Client, site, dnsDomainOverride string, writer io.Writer, options FormatOptions) error {
+// DoGetEntries returns every fixed-IP assignment as HostEntry values -- the
+// same listing DoGet formats to a writer, exposed so DoClear (and any other
+// caller) doesn't need a writer to get the data.
+func DoGetEntries(ctx context.Context, client gofi.Client, site, dnsDomainOverride string) ([]HostEntry, error) {
 	users, err := client.Users().List(ctx, site)
 	if err != nil {
-		return fmt.Errorf("failed to list users: %w", err)
+		return nil, fmt.Errorf("failed to list users: %w", err)
 	}
 
 	// Cross-reference DNS records to warn about hostname mismatches
@@ -79,7 +82,37 @@ func DoGet(ctx context.Context, client gofi.Client, site, dnsDomainOverride stri
 		})
 	}
 
+	return entries, nil
+}
+
+func DoGet(ctx context.Context, client gofi.Client, site, dnsDomainOverride string, writer io.Writer, options FormatOptions) error {
+	entries, err := DoGetEntries(ctx, client, site, dnsDomainOverride)
+	if err != nil {
+		return err
+	}
 	return Format(writer, entries, options)
+}
+
+// DoClear removes every fixed-IP assignment on the site, per host, using the
+// same removal DoDel performs for one (C-IPS-007, C-IPS-009: the DNS record
+// goes too, unless a future --keep-dns is threaded through here). Returns
+// what was (or, if dryRun, would be) removed, so the caller can print it
+// before a confirmation prompt (C-IPS-008).
+func DoClear(ctx context.Context, client gofi.Client, site string, dryRun bool) ([]HostEntry, error) {
+	entries, err := DoGetEntries(ctx, client, site, "")
+	if err != nil {
+		return nil, err
+	}
+	if dryRun {
+		return entries, nil
+	}
+	for _, entry := range entries {
+		identifier := DeleteIdentifier{MAC: entry.MAC}
+		if err := DoDel(ctx, client, site, identifier, "", true, false, false); err != nil {
+			return nil, fmt.Errorf("clearing %s (%s): %w", entry.Hostname, entry.MAC, err)
+		}
+	}
+	return entries, nil
 }
 
 func resolveHostname(user types.User) string {

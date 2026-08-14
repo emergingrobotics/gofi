@@ -269,6 +269,24 @@ func newTestClient() *mockClient {
 	}
 }
 
+// newMockClientWithFixedIPs builds a test client whose user list has one
+// UseFixedIP=true user per given HostEntry, on the same networks newTestClient
+// uses (so DoClear's per-entry DoDel calls resolve a network without error).
+func newMockClientWithFixedIPs(t *testing.T, entries []HostEntry) *mockClient {
+	t.Helper()
+	client := newTestClient()
+	for i, entry := range entries {
+		client.users.users = append(client.users.users, types.User{
+			ID:         fmt.Sprintf("u%d", i+1),
+			MAC:        entry.MAC,
+			Name:       entry.Hostname,
+			UseFixedIP: true,
+			FixedIP:    entry.IP,
+		})
+	}
+	return client
+}
+
 func TestDoGet_BasicExport(t *testing.T) {
 	client := newTestClient()
 	client.users.users = []types.User{
@@ -1109,5 +1127,50 @@ func TestDoGet_WarnsOnValueDrift(t *testing.T) {
 	}
 	if !strings.Contains(string(stderr), "192.168.1.99") {
 		t.Errorf("expected drift warning mentioning the resolved IP, got stderr: %q", string(stderr))
+	}
+}
+
+func TestDoClear_removesEveryFixedIPAssignment(t *testing.T) {
+	client := newMockClientWithFixedIPs(t, []HostEntry{
+		{Hostname: "a", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.10"},
+		{Hostname: "b", MAC: "aa:bb:cc:dd:ee:02", IP: "192.168.1.11"},
+	})
+
+	removed, err := DoClear(context.Background(), client, "default", false)
+	if err != nil {
+		t.Fatalf("DoClear() error = %v", err)
+	}
+	if len(removed) != 2 {
+		t.Fatalf("removed = %d entries, want 2", len(removed))
+	}
+
+	remaining, err := DoGetEntries(context.Background(), client, "default", "")
+	if err != nil {
+		t.Fatalf("DoGetEntries() error = %v", err)
+	}
+	if len(remaining) != 0 {
+		t.Errorf("remaining = %d entries after clear, want 0", len(remaining))
+	}
+}
+
+func TestDoClear_dryRunRemovesNothing(t *testing.T) {
+	client := newMockClientWithFixedIPs(t, []HostEntry{
+		{Hostname: "a", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.10"},
+	})
+
+	removed, err := DoClear(context.Background(), client, "default", true)
+	if err != nil {
+		t.Fatalf("DoClear() error = %v", err)
+	}
+	if len(removed) != 1 {
+		t.Fatalf("removed = %d entries (preview), want 1", len(removed))
+	}
+
+	remaining, err := DoGetEntries(context.Background(), client, "default", "")
+	if err != nil {
+		t.Fatalf("DoGetEntries() error = %v", err)
+	}
+	if len(remaining) != 1 {
+		t.Errorf("remaining = %d entries after dry-run clear, want 1 (nothing removed)", len(remaining))
 	}
 }
