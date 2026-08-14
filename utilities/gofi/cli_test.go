@@ -57,3 +57,20 @@ func TestConfigTargets_listsConfiguredNames(t *testing.T) {
 		t.Fatalf("config targets: %v", err)
 	}
 }
+
+func TestIPsRm_requiresExactlyOneIdentifier(t *testing.T) {
+	cmd := newIPsCommand()
+	cmd.SetArgs([]string{"rm"})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("ips rm with no identifier: error = nil, want a usage error")
+	}
+}
+
+func TestIPsAdd_rejectsFlagsAndPositionalTogether(t *testing.T) {
+	cmd := newIPsCommand()
+	cmd.SetArgs([]string{"add", "--name", "x", "--mac", "aa:bb:cc:dd:ee:ff", "--ip", "10.0.0.1",
+		"host x { hardware ethernet aa:bb:cc:dd:ee:ff; fixed-address 10.0.0.1; }"})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("ips add with both flags and a positional declaration: error = nil, want a usage error")
+	}
+}
