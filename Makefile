@@ -4,7 +4,7 @@
 EXAMPLES := basic crud errors concurrent websocket list fixedips addfixedip delfixedip switches
 
 # All utilities
-UTILITIES := gofidns gofimac gofinet gofips gofiuser
+UTILITIES := gofi
 
 # Install destination. Defaults to the user's ~/bin so no sudo is needed.
 # Override with: make install INSTALL_DIR=/somewhere/else
