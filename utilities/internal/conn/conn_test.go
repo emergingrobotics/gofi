@@ -4,6 +4,8 @@ import (
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/unifi-go/gofi/utilities/internal/config"
 )
 
 func clearEnv(t *testing.T) {
@@ -126,5 +128,52 @@ func TestResolveConfig_ConnectorEnablesRetry(t *testing.T) {
 	}
 	if cfg.RetryConfig.MaxRetries < 1 {
 		t.Errorf("MaxRetries = %d, want >= 1", cfg.RetryConfig.MaxRetries)
+	}
+}
+
+func TestResolveTargetConfig_secureFlagRejectedForConnector(t *testing.T) {
+	clearEnv(t)
+	target := &config.Target{ConsoleID: "abc", APIKeyCommand: "echo key"}
+	secure := true
+	_, err := ResolveTargetConfig(io.Discard, target, "", 0, "", &secure, nil)
+	if err == nil {
+		t.Fatal("ResolveTargetConfig() error = nil, want a usage error for --secure against a connector target")
+	}
+}
+
+func TestResolveTargetConfig_connectorAlwaysVerifiesTLS(t *testing.T) {
+	clearEnv(t)
+	target := &config.Target{ConsoleID: "abc", APIKeyCommand: "echo key"}
+	cfg, err := ResolveTargetConfig(io.Discard, target, "", 0, "", nil, nil)
+	if err != nil {
+		t.Fatalf("ResolveTargetConfig() error = %v", err)
+	}
+	if cfg.SkipTLSVerify {
+		t.Error("SkipTLSVerify = true, want false for connector mode")
+	}
+}
+
+func TestResolveTargetConfig_localModeFlagOverridesTarget(t *testing.T) {
+	clearEnv(t)
+	target := &config.Target{Host: "192.168.1.1", Site: "default", Username: "admin", PasswordCommand: "echo pw"}
+	cfg, err := ResolveTargetConfig(io.Discard, target, "10.0.0.5", 0, "", nil, nil)
+	if err != nil {
+		t.Fatalf("ResolveTargetConfig() error = %v", err)
+	}
+	if cfg.Host != "10.0.0.5" {
+		t.Errorf("Host = %q, want the flag override 10.0.0.5", cfg.Host)
+	}
+}
+
+func TestResolveTargetConfig_nilTargetFallsBackToEnvAndFlags(t *testing.T) {
+	clearEnv(t)
+	t.Setenv(config.EnvUsername, "admin")
+	t.Setenv(config.EnvPassword, "secret")
+	cfg, err := ResolveTargetConfig(io.Discard, nil, "192.168.1.1", 443, "default", nil, nil)
+	if err != nil {
+		t.Fatalf("ResolveTargetConfig() error = %v", err)
+	}
+	if cfg.Host != "192.168.1.1" || cfg.Username != "admin" || cfg.Password != "secret" {
+		t.Errorf("cfg = %+v, want host/username/password from flags+env", cfg)
 	}
 }
