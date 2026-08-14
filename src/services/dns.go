@@ -60,29 +60,22 @@ func (s *dnsService) List(ctx context.Context, site string) ([]types.DNSRecord, 
 }
 
 // Get returns a DNS record by ID.
+//
+// The controller answers GET on an individual static-dns record with 405, so
+// the record is resolved from the collection instead of fetched directly.
 func (s *dnsService) Get(ctx context.Context, site, id string) (*types.DNSRecord, error) {
-	path := buildDNSPath(site, id)
-	req := transport.NewRequest("GET", path)
-
-	resp, err := s.transport.Do(ctx, req)
+	records, err := s.List(ctx, site)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get DNS record: %w", err)
+		return nil, err
 	}
 
-	if resp.StatusCode == 404 {
-		return nil, fmt.Errorf("DNS record not found: %s", id)
+	for index := range records {
+		if records[index].ID == id {
+			return &records[index], nil
+		}
 	}
 
-	if !resp.IsSuccess() {
-		return nil, fmt.Errorf("get DNS record failed with status %d: %s", resp.StatusCode, string(resp.Body))
-	}
-
-	var record types.DNSRecord
-	if err := json.Unmarshal(resp.Body, &record); err != nil {
-		return nil, fmt.Errorf("failed to parse DNS record: %w", err)
-	}
-
-	return &record, nil
+	return nil, fmt.Errorf("DNS record not found: %s", id)
 }
 
 // GetByName returns a DNS record by hostname/key.

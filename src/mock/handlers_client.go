@@ -93,8 +93,9 @@ func (s *Server) handleClientCommand(w http.ResponseWriter, r *http.Request, sit
 
 	// Parse command
 	var cmd struct {
-		CMD  string `json:"cmd"`
-		MAC  string `json:"mac"`
+		CMD  string   `json:"cmd"`
+		MAC  string   `json:"mac"`
+		MACs []string `json:"macs"`
 		// Guest authorization options
 		Minutes int    `json:"minutes,omitempty"`
 		Up      int    `json:"up,omitempty"`
@@ -102,11 +103,32 @@ func (s *Server) handleClientCommand(w http.ResponseWriter, r *http.Request, sit
 		Bytes   int    `json:"bytes,omitempty"`
 		APMAC   string `json:"ap_mac,omitempty"`
 		// Device fingerprint
-		DevID   int    `json:"dev_id,omitempty"`
+		DevID int `json:"dev_id,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&cmd); err != nil {
 		writeBadRequest(w, "Invalid request body")
+		return
+	}
+
+	// forget-sta is batch-only on real controllers: they reject the singular
+	// "mac" form with 400, so the mock enforces the same contract rather than
+	// letting a payload that fails against hardware pass against the mock.
+	if cmd.CMD == "forget-sta" {
+		if len(cmd.MACs) == 0 {
+			writeBadRequest(w, "forget-sta requires a macs array")
+			return
+		}
+		for _, mac := range cmd.MACs {
+			if s.state.GetClient(mac) == nil {
+				writeNotFound(w)
+				return
+			}
+		}
+		for _, mac := range cmd.MACs {
+			s.state.DeleteClient(mac)
+		}
+		writeAPIResponse(w, []interface{}{})
 		return
 	}
 
@@ -145,8 +167,6 @@ func (s *Server) handleClientCommand(w http.ResponseWriter, r *http.Request, sit
 		client.GuestKicked = true
 		// In real controller, this would disconnect the client
 		s.state.UpdateClient(client)
-	case "forget-sta":
-		s.state.DeleteClient(cmd.MAC)
 	case "authorize-guest":
 		client.GuestAuthorized = true
 		client.Authorized = true

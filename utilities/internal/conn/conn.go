@@ -16,6 +16,7 @@ const (
 	EnvUsername     = "UNIFI_USERNAME"
 	EnvPassword     = "UNIFI_PASSWORD"
 	EnvControllerIP = "UNIFI_CONTROLLER_IP"
+	EnvDNSDomain    = "UNIFI_DNS_DOMAIN"
 	EnvAPIKey       = "UNIFI_API_KEY"
 	EnvConsoleID    = "UNIFI_CONSOLE_ID"
 )

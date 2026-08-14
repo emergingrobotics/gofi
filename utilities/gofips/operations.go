@@ -25,7 +25,7 @@ type DeleteIdentifier struct {
 	IP   string
 }
 
-func DoGet(ctx context.Context, client gofi.Client, site string, writer io.Writer, options FormatOptions) error {
+func DoGet(ctx context.Context, client gofi.Client, site, dnsDomainOverride string, writer io.Writer, options FormatOptions) error {
 	users, err := client.Users().List(ctx, site)
 	if err != nil {
 		return fmt.Errorf("failed to list users: %w", err)
@@ -40,9 +40,14 @@ func DoGet(ctx context.Context, client gofi.Client, site string, writer io.Write
 		}
 	}
 
-	// Networks give the per-network domain used to build each FQDN for the
-	// live drift check below. Non-fatal: without them, drift is simply not audited.
+	// Networks supply the domain used to build each FQDN for the live drift
+	// check below. Non-fatal: export is a read, so an unresolvable domain costs
+	// the audit, not the export.
 	networks, _ := client.Networks().List(ctx, site)
+	domain, domainErr := dnsDomain(networks, dnsDomainOverride)
+	if domainErr != nil {
+		fmt.Fprintf(os.Stderr, "  warning: DNS drift not audited: %v\n", domainErr)
+	}
 
 	var entries []HostEntry
 	for _, user := range users {
@@ -60,12 +65,11 @@ func DoGet(ctx context.Context, client gofi.Client, site string, writer io.Write
 
 		// Audit for value drift: the name resolving to an IP other than the
 		// fixed IP means DNS and the reservation disagree.
-		fqdn := hostname
-		if domain := domainForIP(networks, user.FixedIP); domain != "" {
-			fqdn = hostname + "." + domain
-		}
-		if addrs, _ := resolveFQDN(ctx, fqdn); len(addrs) > 0 && !containsString(addrs, user.FixedIP) {
-			fmt.Fprintf(os.Stderr, "  warning: %s resolves to %s (drift from fixed IP %s)\n", fqdn, strings.Join(addrs, ","), user.FixedIP)
+		if domainErr == nil {
+			fqdn := hostname + "." + domain
+			if addrs, _ := resolveFQDN(ctx, fqdn); len(addrs) > 0 && !containsString(addrs, user.FixedIP) {
+				fmt.Fprintf(os.Stderr, "  warning: %s resolves to %s (drift from fixed IP %s)\n", fqdn, strings.Join(addrs, ","), user.FixedIP)
+			}
 		}
 
 		entries = append(entries, HostEntry{
@@ -98,7 +102,7 @@ func displayName(user *types.User) string {
 	return user.MAC
 }
 
-func DoSet(ctx context.Context, client gofi.Client, site string, entries []HostEntry, dryRun, force bool) (*SetResult, error) {
+func DoSet(ctx context.Context, client gofi.Client, site string, entries []HostEntry, dnsDomainOverride string, dryRun, force bool) (*SetResult, error) {
 	result := &SetResult{}
 
 	users, err := client.Users().List(ctx, site)
@@ -117,6 +121,18 @@ func DoSet(ctx context.Context, client gofi.Client, site string, entries []HostE
 		return nil, fmt.Errorf("failed to list networks: %w", err)
 	}
 
+	// Resolve the DNS domain before writing anything. Continuing without one
+	// would write bare keys that no qualified query ever reaches, so the run
+	// would report success while changing nothing a client can see.
+	domain, err := dnsDomain(networks, dnsDomainOverride)
+	if err != nil {
+		return nil, err
+	}
+	reconciler, err := newDNSReconciler(ctx, client, site, domain, dryRun)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, entry := range entries {
 		macAddress := strings.ToLower(entry.MAC)
 
@@ -126,7 +142,7 @@ func DoSet(ctx context.Context, client gofi.Client, site string, entries []HostE
 
 			if unchanged && !force {
 				fmt.Fprintf(os.Stderr, "  skip: %s %s %s (user record unchanged)\n", entry.Hostname, entry.IP, macAddress)
-				if err := ensureDNSRecord(ctx, client, site, entry.Hostname, domainForIP(networks, entry.IP), entry.IP, dryRun); err != nil {
+				if err := reconciler.ensure(ctx, entry.Hostname, entry.IP); err != nil {
 					fmt.Fprintf(os.Stderr, "  warning: %s: DNS record failed: %v\n", entry.Hostname, err)
 				}
 				result.Skipped++
@@ -135,7 +151,7 @@ func DoSet(ctx context.Context, client gofi.Client, site string, entries []HostE
 
 			if dryRun {
 				fmt.Fprintf(os.Stderr, "  would update: %s %s %s\n", entry.Hostname, entry.IP, macAddress)
-				if err := ensureDNSRecord(ctx, client, site, entry.Hostname, domainForIP(networks, entry.IP), entry.IP, true); err != nil {
+				if err := reconciler.ensure(ctx, entry.Hostname, entry.IP); err != nil {
 					fmt.Fprintf(os.Stderr, "  warning: %s: DNS record failed: %v\n", entry.Hostname, err)
 				}
 				result.Updated++
@@ -159,7 +175,7 @@ func DoSet(ctx context.Context, client gofi.Client, site string, entries []HostE
 				continue
 			}
 
-			if err := ensureDNSRecord(ctx, client, site, entry.Hostname, network.DomainName, entry.IP, false); err != nil {
+			if err := reconciler.ensure(ctx, entry.Hostname, entry.IP); err != nil {
 				fmt.Fprintf(os.Stderr, "  warning: %s: DNS record failed: %v\n", entry.Hostname, err)
 			}
 
@@ -170,7 +186,7 @@ func DoSet(ctx context.Context, client gofi.Client, site string, entries []HostE
 
 		if dryRun {
 			fmt.Fprintf(os.Stderr, "  would create: %s %s %s\n", entry.Hostname, entry.IP, macAddress)
-			if err := ensureDNSRecord(ctx, client, site, entry.Hostname, domainForIP(networks, entry.IP), entry.IP, true); err != nil {
+			if err := reconciler.ensure(ctx, entry.Hostname, entry.IP); err != nil {
 				fmt.Fprintf(os.Stderr, "  warning: %s: DNS record failed: %v\n", entry.Hostname, err)
 			}
 			result.Created++
@@ -214,7 +230,7 @@ func DoSet(ctx context.Context, client gofi.Client, site string, entries []HostE
 			result.Created++
 		}
 
-		if err := ensureDNSRecord(ctx, client, site, entry.Hostname, network.DomainName, entry.IP, false); err != nil {
+		if err := reconciler.ensure(ctx, entry.Hostname, entry.IP); err != nil {
 			fmt.Fprintf(os.Stderr, "  warning: %s: DNS record failed: %v\n", entry.Hostname, err)
 		}
 	}
@@ -222,19 +238,29 @@ func DoSet(ctx context.Context, client gofi.Client, site string, entries []HostE
 	return result, nil
 }
 
-func DoAdd(ctx context.Context, client gofi.Client, site string, entry *HostEntry, force bool) error {
-	if !force {
-		if err := checkAddConflicts(ctx, client, site, entry); err != nil {
-			return err
-		}
-	}
-
+func DoAdd(ctx context.Context, client gofi.Client, site string, entry *HostEntry, dnsDomainOverride string, force bool) error {
 	networks, err := client.Networks().List(ctx, site)
 	if err != nil {
 		return fmt.Errorf("failed to list networks: %w", err)
 	}
 
+	domain, err := dnsDomain(networks, dnsDomainOverride)
+	if err != nil {
+		return err
+	}
+
+	if !force {
+		if err := checkAddConflicts(ctx, client, site, entry, domain); err != nil {
+			return err
+		}
+	}
+
 	network, err := detectNetwork(networks, entry.IP)
+	if err != nil {
+		return err
+	}
+
+	reconciler, err := newDNSReconciler(ctx, client, site, domain, false)
 	if err != nil {
 		return err
 	}
@@ -263,7 +289,7 @@ func DoAdd(ctx context.Context, client gofi.Client, site string, entry *HostEntr
 		}
 	}
 
-	if err := ensureDNSRecord(ctx, client, site, entry.Hostname, network.DomainName, entry.IP, false); err != nil {
+	if err := reconciler.ensure(ctx, entry.Hostname, entry.IP); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: DNS record failed: %v\n", err)
 		fmt.Fprintf(os.Stderr, "The fixed IP assignment was created, but DNS must be configured manually.\n")
 	}
@@ -272,7 +298,7 @@ func DoAdd(ctx context.Context, client gofi.Client, site string, entry *HostEntr
 	return nil
 }
 
-func DoDel(ctx context.Context, client gofi.Client, site string, identifier DeleteIdentifier, force, keepDNS bool) error {
+func DoDel(ctx context.Context, client gofi.Client, site string, identifier DeleteIdentifier, dnsDomainOverride string, force, keepDNS bool) error {
 	user, err := findUserByIdentifier(ctx, client, site, identifier)
 	if err != nil {
 		return err
@@ -282,14 +308,17 @@ func DoDel(ctx context.Context, client gofi.Client, site string, identifier Dele
 
 	fmt.Printf("Found: %s %s %s\n", userName, user.MAC, user.FixedIP)
 
-	if !keepDNS && user.UseFixedIP && user.FixedIP != "" {
-		dnsRecords, _ := client.DNS().GetByIP(ctx, site, user.FixedIP)
-		for _, record := range dnsRecords {
-			if err := client.DNS().Delete(ctx, site, record.ID); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to delete DNS record %s: %v\n", record.Key, err)
-			} else {
-				fmt.Printf("  Deleted DNS record: %s -> %s\n", record.Key, record.Value)
-			}
+	if !keepDNS {
+		// Matching on the hostname as well as the address catches records left
+		// under an address the host no longer holds -- the ones a value-only
+		// lookup silently walks past.
+		networks, _ := client.Networks().List(ctx, site)
+		domain, _ := dnsDomain(networks, dnsDomainOverride)
+		reconciler, err := newDNSReconciler(ctx, client, site, domain, false)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+		} else if err := reconciler.removeHost(ctx, resolveHostname(*user), user.FixedIP, os.Stdout); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
 		}
 	}
 
@@ -311,7 +340,7 @@ func DoDel(ctx context.Context, client gofi.Client, site string, identifier Dele
 	return nil
 }
 
-func checkAddConflicts(ctx context.Context, client gofi.Client, site string, entry *HostEntry) error {
+func checkAddConflicts(ctx context.Context, client gofi.Client, site string, entry *HostEntry, domain string) error {
 	users, err := client.Users().List(ctx, site)
 	if err != nil {
 		return fmt.Errorf("failed to list users: %w", err)
@@ -327,14 +356,7 @@ func checkAddConflicts(ctx context.Context, client gofi.Client, site string, ent
 		}
 	}
 
-	networks, err := client.Networks().List(ctx, site)
-	if err != nil {
-		return fmt.Errorf("failed to list networks: %w", err)
-	}
-	dnsKey := entry.Hostname
-	if domain := domainForIP(networks, entry.IP); domain != "" {
-		dnsKey = entry.Hostname + "." + domain
-	}
+	dnsKey := entry.Hostname + "." + domain
 	existingDNS, _ := client.DNS().GetByName(ctx, site, dnsKey)
 	if existingDNS != nil && existingDNS.Value != entry.IP {
 		return fmt.Errorf("DNS record %s already points to %s (not %s)\nUse --force to override", dnsKey, existingDNS.Value, entry.IP)
@@ -433,38 +455,100 @@ func isOverlapError(err error) bool {
 // DNS, that is reported as drift because a static record cannot override it.
 // Any legacy bare-hostname static record we previously wrote is removed first.
 // When domain is empty the FQDN degrades to the bare hostname.
-func ensureDNSRecord(ctx context.Context, client gofi.Client, site, hostname, domain, ipAddress string, dryRun bool) error {
-	fqdn := hostname
-	if domain != "" {
-		fqdn = hostname + "." + domain
+// dnsReconciler owns a site's static DNS records for the life of one command.
+//
+// Records are listed once and every lookup scans that snapshot by hostname.
+// Locating a record by exact key or by the host's current IP -- as earlier
+// versions did -- makes precisely the records that need repair invisible, since
+// a record needing repair is by definition one that disagrees with current
+// state.
+type dnsReconciler struct {
+	client  gofi.Client
+	site    string
+	domain  string
+	dryRun  bool
+	records []types.DNSRecord
+}
+
+// newDNSReconciler snapshots the site's records. A domain is required to write
+// a key but not to find one by hostname, so an empty domain is accepted here
+// and rejected by ensure.
+func newDNSReconciler(ctx context.Context, client gofi.Client, site, domain string, dryRun bool) (*dnsReconciler, error) {
+	records, err := client.DNS().List(ctx, site)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list DNS records: %w", err)
 	}
 
-	if fqdn != hostname {
-		if stale, _ := client.DNS().GetByName(ctx, site, hostname); stale != nil && stale.Key == hostname {
-			if dryRun {
-				fmt.Fprintf(os.Stderr, "    would replace bare DNS record: %s -> %s\n", stale.Key, stale.Value)
-			} else {
-				if err := client.DNS().Delete(ctx, site, stale.ID); err != nil {
-					return fmt.Errorf("failed to delete stale DNS record %s: %w", stale.Key, err)
-				}
-			}
+	return &dnsReconciler{
+		client:  client,
+		site:    site,
+		domain:  domain,
+		dryRun:  dryRun,
+		records: records,
+	}, nil
+}
+
+func (r *dnsReconciler) fqdn(hostname string) string {
+	return hostname + "." + r.domain
+}
+
+// forHost returns every A record whose first label is hostname, whatever its
+// suffix, so a record stranded under an old domain is still reachable.
+func (r *dnsReconciler) forHost(hostname string) []types.DNSRecord {
+	var matches []types.DNSRecord
+	for _, record := range r.records {
+		if record.RecordType != types.DNSRecordTypeA {
+			continue
+		}
+		if dnsHostnameMatches(record.Key, hostname) {
+			matches = append(matches, record)
+		}
+	}
+	return matches
+}
+
+// ensure makes hostname resolve to ipAddress and nothing else.
+func (r *dnsReconciler) ensure(ctx context.Context, hostname, ipAddress string) error {
+	if r.domain == "" {
+		return fmt.Errorf("no DNS domain resolved; a bare DNS key is never served for a qualified query")
+	}
+
+	fqdn := r.fqdn(hostname)
+
+	var current *types.DNSRecord
+	var strays []types.DNSRecord
+	for _, record := range r.forHost(hostname) {
+		if record.Key == fqdn && current == nil {
+			kept := record
+			current = &kept
+			continue
+		}
+		strays = append(strays, record)
+	}
+
+	// A stray is a bare key, a key under a suffix we no longer use, or a second
+	// record at the same key. None can be reached by a later lookup, and a
+	// duplicate makes the name round-robin onto a dead address.
+	for _, stray := range strays {
+		if err := r.remove(ctx, stray, "stale"); err != nil {
+			return err
 		}
 	}
 
-	// A static record we own: reconcile its value.
-	existing, _ := client.DNS().GetByName(ctx, site, fqdn)
-	if existing != nil {
-		if existing.Value == ipAddress {
+	if current != nil {
+		if current.Value == ipAddress {
 			return nil
 		}
-		if dryRun {
+		if r.dryRun {
 			fmt.Fprintf(os.Stderr, "    would update DNS record: %s -> %s\n", fqdn, ipAddress)
 			return nil
 		}
-		existing.Value = ipAddress
-		if _, err := client.DNS().Update(ctx, site, existing); err != nil {
+		updated := *current
+		updated.Value = ipAddress
+		if _, err := r.client.DNS().Update(ctx, r.site, &updated); err != nil {
 			return fmt.Errorf("failed to update DNS record: %w", err)
 		}
+		r.replace(updated)
 		fmt.Fprintf(os.Stderr, "    updated DNS record: %s -> %s\n", fqdn, ipAddress)
 		return nil
 	}
@@ -479,18 +563,18 @@ func ensureDNSRecord(ctx context.Context, client gofi.Client, site, hostname, do
 		return fmt.Errorf("%s resolves to %s via device local DNS, not %s; correct the DHCP reservation", fqdn, strings.Join(addrs, ","), ipAddress)
 	}
 
-	if dryRun {
+	if r.dryRun {
 		fmt.Fprintf(os.Stderr, "    would create DNS record: %s -> %s\n", fqdn, ipAddress)
 		return nil
 	}
 
-	record := &types.DNSRecord{
+	created, err := r.client.DNS().Create(ctx, r.site, &types.DNSRecord{
 		Key:        fqdn,
 		Value:      ipAddress,
 		RecordType: types.DNSRecordTypeA,
 		Enabled:    true,
-	}
-	if _, err := client.DNS().Create(ctx, site, record); err != nil {
+	})
+	if err != nil {
 		if isOverlapError(err) {
 			// Device-local DNS registered the name between our lookup and create.
 			fmt.Fprintf(os.Stderr, "    ok: %s served by device local DNS (static overlaps)\n", fqdn)
@@ -498,8 +582,83 @@ func ensureDNSRecord(ctx context.Context, client gofi.Client, site, hostname, do
 		}
 		return fmt.Errorf("failed to create DNS record: %w", err)
 	}
+	r.records = append(r.records, *created)
 	fmt.Fprintf(os.Stderr, "    created DNS record: %s -> %s\n", fqdn, ipAddress)
 	return nil
+}
+
+// removeHost deletes every record belonging to a host: those keyed on its name
+// under any suffix, plus any record still pointing at the address it is giving
+// up. Progress goes to writer because delete reports to stdout.
+func (r *dnsReconciler) removeHost(ctx context.Context, hostname, ipAddress string, writer io.Writer) error {
+	doomed := r.forHost(hostname)
+	claimed := make(map[string]bool, len(doomed))
+	for _, record := range doomed {
+		claimed[record.ID] = true
+	}
+	if ipAddress != "" {
+		for _, record := range r.records {
+			if record.Value == ipAddress && !claimed[record.ID] {
+				claimed[record.ID] = true
+				doomed = append(doomed, record)
+			}
+		}
+	}
+
+	for _, record := range doomed {
+		if r.dryRun {
+			fmt.Fprintf(writer, "  Would delete DNS record: %s -> %s\n", record.Key, record.Value)
+			continue
+		}
+		if err := r.client.DNS().Delete(ctx, r.site, record.ID); err != nil {
+			return fmt.Errorf("failed to delete DNS record %s: %w", record.Key, err)
+		}
+		r.drop(record.ID)
+		fmt.Fprintf(writer, "  Deleted DNS record: %s -> %s\n", record.Key, record.Value)
+	}
+	return nil
+}
+
+func (r *dnsReconciler) remove(ctx context.Context, record types.DNSRecord, reason string) error {
+	if r.dryRun {
+		fmt.Fprintf(os.Stderr, "    would delete %s DNS record: %s -> %s\n", reason, record.Key, record.Value)
+		return nil
+	}
+	if err := r.client.DNS().Delete(ctx, r.site, record.ID); err != nil {
+		return fmt.Errorf("failed to delete %s DNS record %s: %w", reason, record.Key, err)
+	}
+	r.drop(record.ID)
+	fmt.Fprintf(os.Stderr, "    deleted %s DNS record: %s -> %s\n", reason, record.Key, record.Value)
+	return nil
+}
+
+func (r *dnsReconciler) replace(record types.DNSRecord) {
+	for index := range r.records {
+		if r.records[index].ID == record.ID {
+			r.records[index] = record
+			return
+		}
+	}
+}
+
+func (r *dnsReconciler) drop(id string) {
+	for index := range r.records {
+		if r.records[index].ID == id {
+			r.records = append(r.records[:index], r.records[index+1:]...)
+			return
+		}
+	}
+}
+
+// ensureDNSRecord reconciles a single hostname against a freshly listed record
+// set. Batch callers build one reconciler instead, so the record list is
+// fetched once per command rather than once per host.
+func ensureDNSRecord(ctx context.Context, client gofi.Client, site, hostname, domain, ipAddress string, dryRun bool) error {
+	reconciler, err := newDNSReconciler(ctx, client, site, domain, dryRun)
+	if err != nil {
+		return err
+	}
+	return reconciler.ensure(ctx, hostname, ipAddress)
 }
 
 func detectNetwork(networks []types.Network, ipAddress string) (*types.Network, error) {
@@ -520,15 +679,37 @@ func detectNetwork(networks []types.Network, ipAddress string) (*types.Network, 
 	return nil, fmt.Errorf("no network found containing IP %s", ipAddress)
 }
 
-// domainForIP returns the local domain of the network that owns the IP, or an
-// empty string if the IP is not in any network or that network has no domain.
-// Used on the DNS-repair path where a missing network is non-fatal.
-func domainForIP(networks []types.Network, ipAddress string) string {
-	network, err := detectNetwork(networks, ipAddress)
-	if err != nil {
-		return ""
+// dnsDomain resolves the single suffix used for every static DNS key.
+//
+// Static DNS records carry no network association -- the controller stores only
+// a key and a value -- so deriving the suffix from a per-network domain_name
+// breaks the moment a host moves between VLANs: the key changes, and the record
+// left under the old suffix becomes unreachable to every later lookup. A network
+// with no domain_name yields a bare key that the resolver never serves for a
+// qualified query, which fails silently. One site-wide domain keeps a host's key
+// stable wherever the host lives.
+func dnsDomain(networks []types.Network, override string) (string, error) {
+	if override != "" {
+		return override, nil
 	}
-	return network.DomainName
+
+	var domains []string
+	for _, network := range networks {
+		if network.DomainName == "" || containsString(domains, network.DomainName) {
+			continue
+		}
+		domains = append(domains, network.DomainName)
+	}
+
+	switch len(domains) {
+	case 1:
+		return domains[0], nil
+	case 0:
+		return "", fmt.Errorf("no network defines a domain name; set one on a network or pass --dns-domain")
+	default:
+		return "", fmt.Errorf("networks define %d different domain names (%s); pass --dns-domain to choose one",
+			len(domains), strings.Join(domains, ", "))
+	}
 }
 
 // dnsHostnameMatches reports whether a DNS record key belongs to the given

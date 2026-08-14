@@ -30,6 +30,10 @@ func main() {
 		force   = flag.Bool("force", false, "Skip conflict checks; force delete")
 		keepDNS = flag.Bool("keep-dns", false, "Do not delete associated DNS records")
 		dryRun  = flag.Bool("dry-run", false, "Show what would be done without making changes")
+
+		// Static DNS records are not network-scoped, so the suffix is a
+		// site-wide choice rather than a per-network one.
+		dnsDomain = flag.String("dns-domain", os.Getenv(conn.EnvDNSDomain), "DNS suffix for record keys (default: the domain configured on the networks)")
 	)
 
 	flag.StringVar(host, "H", "", "UniFi controller address (shorthand)")
@@ -45,6 +49,7 @@ func main() {
 	flag.StringVar(ip, "i", "", "IP address for --del (shorthand)")
 	flag.BoolVar(force, "f", false, "Force (shorthand)")
 	flag.BoolVar(keepDNS, "K", false, "Keep DNS (shorthand)")
+	flag.StringVar(dnsDomain, "D", os.Getenv(conn.EnvDNSDomain), "DNS suffix for record keys (shorthand)")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options] <mode>\n\n", os.Args[0])
@@ -66,13 +71,15 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Other:\n")
 		fmt.Fprintf(os.Stderr, "  -f, --force\t\tSkip conflict checks; with --set, re-process unchanged entries\n")
 		fmt.Fprintf(os.Stderr, "  -K, --keep-dns\tDo not delete DNS records on delete\n")
-		fmt.Fprintf(os.Stderr, "      --dry-run\t\tShow what would be done without making changes\n\n")
+		fmt.Fprintf(os.Stderr, "      --dry-run\t\tShow what would be done without making changes\n")
+		fmt.Fprintf(os.Stderr, "  -D, --dns-domain string\tDNS suffix for record keys (or set %s)\n\n", conn.EnvDNSDomain)
 		fmt.Fprintf(os.Stderr, "Environment Variables:\n")
 		fmt.Fprintf(os.Stderr, "  %s\tAPI key (preferred; requires %s)\n", conn.EnvAPIKey, conn.EnvConsoleID)
 		fmt.Fprintf(os.Stderr, "  %s\tSite Manager console ID (connector mode)\n", conn.EnvConsoleID)
 		fmt.Fprintf(os.Stderr, "  %s\tUsername (required if no API key)\n", conn.EnvUsername)
 		fmt.Fprintf(os.Stderr, "  %s\tPassword (required if no API key)\n", conn.EnvPassword)
-		fmt.Fprintf(os.Stderr, "  %s\tUniFi controller (fallback for -H)\n\n", conn.EnvControllerIP)
+		fmt.Fprintf(os.Stderr, "  %s\tUniFi controller (fallback for -H)\n", conn.EnvControllerIP)
+		fmt.Fprintf(os.Stderr, "  %s\tDNS suffix for record keys (fallback for -D)\n\n", conn.EnvDNSDomain)
 		fmt.Fprintf(os.Stderr, "Examples:\n")
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k -g > hosts.conf\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s -H 192.168.1.1 -k -s hosts.conf\n", os.Args[0])
@@ -188,12 +195,12 @@ func main() {
 			Host: *host,
 			Date: time.Now().Format("2006-01-02"),
 		}
-		if err := DoGet(ctx, client, *site, os.Stdout, opts); err != nil {
+		if err := DoGet(ctx, client, *site, *dnsDomain, os.Stdout, opts); err != nil {
 			exitError(err.Error())
 		}
 
 	case *set:
-		result, err := DoSet(ctx, client, *site, parsedEntries, *dryRun, *force)
+		result, err := DoSet(ctx, client, *site, parsedEntries, *dnsDomain, *dryRun, *force)
 		if err != nil {
 			exitError(err.Error())
 		}
@@ -204,13 +211,13 @@ func main() {
 		}
 
 	case *add:
-		if err := DoAdd(ctx, client, *site, singleEntry, *force); err != nil {
+		if err := DoAdd(ctx, client, *site, singleEntry, *dnsDomain, *force); err != nil {
 			exitError(err.Error())
 		}
 
 	case *del:
 		identifier := DeleteIdentifier{Name: *name, MAC: *mac, IP: *ip}
-		if err := DoDel(ctx, client, *site, identifier, *force, *keepDNS); err != nil {
+		if err := DoDel(ctx, client, *site, identifier, *dnsDomain, *force, *keepDNS); err != nil {
 			exitError(err.Error())
 		}
 	}

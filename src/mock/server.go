@@ -160,6 +160,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Local DNS records (v2 API)
+	if strings.Contains(path, "/v2/api/site/") && strings.Contains(path, "/static-dns") {
+		s.handleDNSRecords(w, r, site)
+		return
+	}
+
 	// Client/station endpoints
 	if strings.Contains(path, "/stat/sta") || strings.Contains(path, "/stat/alluser") || strings.Contains(path, "/cmd/stamgr") {
 		s.handleClients(w, r, site)

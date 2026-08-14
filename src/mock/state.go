@@ -23,6 +23,7 @@ type State struct {
 	firewallRules map[string]*types.FirewallRule
 	firewallGroups map[string]*types.FirewallGroup
 	trafficRules map[string]*types.TrafficRule
+	dnsRecords   map[string]*types.DNSRecord
 	clients      map[string]*types.Client
 	users        map[string]*types.User
 	userGroups   map[string]*types.UserGroup
@@ -56,6 +57,7 @@ func NewState() *State {
 		firewallRules:      make(map[string]*types.FirewallRule),
 		firewallGroups:     make(map[string]*types.FirewallGroup),
 		trafficRules:       make(map[string]*types.TrafficRule),
+		dnsRecords:         make(map[string]*types.DNSRecord),
 		clients:            make(map[string]*types.Client),
 		users:              make(map[string]*types.User),
 		userGroups:         make(map[string]*types.UserGroup),
@@ -95,6 +97,7 @@ func (s *State) Reset() {
 	s.firewallRules = make(map[string]*types.FirewallRule)
 	s.firewallGroups = make(map[string]*types.FirewallGroup)
 	s.trafficRules = make(map[string]*types.TrafficRule)
+	s.dnsRecords = make(map[string]*types.DNSRecord)
 	s.clients = make(map[string]*types.Client)
 	s.users = make(map[string]*types.User)
 	s.userGroups = make(map[string]*types.UserGroup)
@@ -416,6 +419,41 @@ func (s *State) DeleteTrafficRule(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.trafficRules, id)
+}
+
+// DNS record accessors
+func (s *State) GetDNSRecord(id string) *types.DNSRecord {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.dnsRecords[id]
+}
+
+func (s *State) ListDNSRecords() []*types.DNSRecord {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	records := make([]*types.DNSRecord, 0, len(s.dnsRecords))
+	for _, record := range s.dnsRecords {
+		records = append(records, record)
+	}
+	return records
+}
+
+func (s *State) AddDNSRecord(record *types.DNSRecord) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dnsRecords[record.ID] = record
+}
+
+func (s *State) UpdateDNSRecord(record *types.DNSRecord) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dnsRecords[record.ID] = record
+}
+
+func (s *State) DeleteDNSRecord(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.dnsRecords, id)
 }
 
 // Client accessors

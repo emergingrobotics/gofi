@@ -170,11 +170,23 @@ func (s *clientStationService) SetFingerprint(ctx context.Context, site, mac str
 	return s.executeCommand(ctx, site, "set-sta-dev-id", mac, payload)
 }
 
+// batchMACCommands lists stamgr commands that are batch-only. They take a
+// "macs" array and reject the singular "mac" field with HTTP 400, unlike the
+// rest of the stamgr surface which takes a single "mac".
+var batchMACCommands = map[string]bool{
+	"forget-sta": true,
+}
+
 // executeCommand executes a client management command.
 func (s *clientStationService) executeCommand(ctx context.Context, site, cmd, mac string, extra map[string]interface{}) error {
 	payload := map[string]interface{}{
 		"cmd": cmd,
-		"mac": mac,
+	}
+
+	if batchMACCommands[cmd] {
+		payload["macs"] = []string{mac}
+	} else {
+		payload["mac"] = mac
 	}
 
 	// Merge extra fields

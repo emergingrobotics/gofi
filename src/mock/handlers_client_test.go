@@ -132,6 +132,7 @@ func TestHandleClientCommand(t *testing.T) {
 	tests := []struct {
 		name        string
 		cmd         string
+		batchMACs   bool
 		expectField func(*types.Client) bool
 		shouldExist bool
 	}{
@@ -162,6 +163,7 @@ func TestHandleClientCommand(t *testing.T) {
 		{
 			name:        "forget client",
 			cmd:         "forget-sta",
+			batchMACs:   true,
 			expectField: nil,
 			shouldExist: false,
 		},
@@ -177,7 +179,11 @@ func TestHandleClientCommand(t *testing.T) {
 			// Send command
 			cmdBody := map[string]interface{}{
 				"cmd": tt.cmd,
-				"mac": testClient.MAC,
+			}
+			if tt.batchMACs {
+				cmdBody["macs"] = []string{testClient.MAC}
+			} else {
+				cmdBody["mac"] = testClient.MAC
 			}
 			body, _ := json.Marshal(cmdBody)
 
@@ -208,6 +214,75 @@ func TestHandleClientCommand(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Real controllers reject forget-sta carrying the singular "mac" field with
+// HTTP 400. Guard the batch-only contract so the singular form cannot creep
+// back in and pass here while failing against hardware.
+func TestHandleClientCommandForgetRejectsSingularMAC(t *testing.T) {
+	server := NewServer(WithoutAuth(), WithoutCSRF())
+	defer server.Close()
+
+	testClient := &types.Client{
+		MAC:      "aa:bb:cc:dd:ee:fe",
+		Hostname: "forget-singular",
+		LastSeen: time.Now().Unix(),
+	}
+	server.state.AddClient(testClient)
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"cmd": "forget-sta",
+		"mac": testClient.MAC,
+	})
+
+	req, _ := http.NewRequest("POST", server.URL()+"/api/s/default/cmd/stamgr", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := testClientHTTPClient.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to send command: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("Expected status 400 for singular mac, got %d", resp.StatusCode)
+	}
+
+	if server.state.GetClient(testClient.MAC) == nil {
+		t.Error("Client was deleted despite the request being rejected")
+	}
+}
+
+func TestHandleClientCommandForgetMultipleMACs(t *testing.T) {
+	server := NewServer(WithoutAuth(), WithoutCSRF())
+	defer server.Close()
+
+	macs := []string{"aa:bb:cc:dd:ee:11", "aa:bb:cc:dd:ee:22"}
+	for _, mac := range macs {
+		server.state.AddClient(&types.Client{MAC: mac, LastSeen: time.Now().Unix()})
+	}
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"cmd":  "forget-sta",
+		"macs": macs,
+	})
+
+	req, _ := http.NewRequest("POST", server.URL()+"/api/s/default/cmd/stamgr", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := testClientHTTPClient.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to send command: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected status 200, got %d", resp.StatusCode)
+	}
+
+	for _, mac := range macs {
+		if server.state.GetClient(mac) != nil {
+			t.Errorf("Client %s was not deleted", mac)
+		}
 	}
 }
 

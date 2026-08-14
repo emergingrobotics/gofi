@@ -612,6 +612,187 @@ utilities/
     format.go         # Text and JSON output
 ```
 
+## gofidns Tool
+
+A command-line tool for listing and deleting local (static) DNS records. Lives in
+`utilities/gofidns/`. Built on the gofi module.
+
+### Purpose
+
+`gofips` creates and deletes DNS records only as a side effect of managing the user
+record that owns a fixed IP. That is the wrong instrument when a stale record points
+at an address whose current owner must be preserved: deleting the user to clear the
+DNS entry would take the reservation with it. `gofidns` operates on DNS records
+directly, independent of any user record.
+
+### CLI Interface
+
+```
+gofidns [connection flags] -g [-j]
+gofidns [connection flags] -d --id <record-id>
+gofidns [connection flags] -d -n <name> [--dry-run]
+gofidns [connection flags] -d --ip <ip> [-f]
+```
+
+### Mode Flags
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--get` | `-g` | List local DNS records |
+| `--del` | `-d` | Delete a local DNS record |
+
+### Identifier Flags (used with `--del`)
+
+Exactly one is required.
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--id` | `-i` | Record ID (unambiguous; the only identifier guaranteed to select one record) |
+| `--name` | `-n` | Record name/key, matched case-insensitively |
+| `--ip` | | Record value; several names can share one address |
+
+### Other Flags
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--json` | `-j` | Output in JSON format |
+| `--force` | `-f` | Allow an identifier matching several records to delete them all |
+| `--dry-run` | | Show what would be done without making changes |
+
+### Connection Flags and Environment Variables
+
+Same as `gofips`.
+
+### Behavior: `--get` Mode
+
+1. List all records via `client.DNS().List()`.
+2. Flatten to: ID, key, value, record type, TTL, enabled.
+3. Sort by key, then value.
+4. Output text (space-aligned columns) or JSON (`-j`).
+
+### Behavior: `--del` Mode
+
+1. List all records and select those the identifier matches.
+2. Zero matches is an error.
+3. More than one match is an error unless `--force` is given, so an ambiguous
+   `--name` or `--ip` cannot silently remove more than intended.
+4. Delete each match via `client.DNS().Delete()`, reporting per-record outcomes to
+   stderr. Exit 1 if any delete failed.
+
+### Text Output Format
+
+```
+NAME                  VALUE          TYPE  TTL  ID
+host1.example.com     192.168.2.10   A     -    6a650dc764d5a843350f2f55
+off.example.com (disabled)  192.168.2.11   A     300  6a650dd364d5a843350f2fa1
+```
+
+Disabled records are marked inline in the name column so they are not mistaken for
+active ones.
+
+### Project Layout
+
+```
+utilities/
+  gofidns/
+    main.go           # Entry point, flag parsing, mode dispatch
+    operations.go     # get/del business logic, record matching
+    format.go         # Text and JSON output
+```
+
+## gofiuser Tool
+
+A command-line tool for inspecting and removing known-client (user) records. Lives
+in `utilities/gofiuser/`. Built on the gofi module.
+
+### Purpose
+
+Removing a client from the controller has two broken paths in the raw API:
+`DELETE /rest/user/<id>` answers 404, and `forget-sta` is batch-only. `gofiuser`
+wraps the working sequence and exposes the known-client table, which `gofips` only
+shows through the lens of fixed-IP assignments.
+
+### CLI Interface
+
+```
+gofiuser [connection flags] -l [--filter <substring>] [-j]
+gofiuser [connection flags] -d -m <mac> [--dry-run]
+gofiuser [connection flags] -d -n <name>
+```
+
+### Mode Flags
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--list` | `-l` | List known-client records |
+| `--del` | `-d` | Remove a known client |
+
+### Identifier Flags (used with `--del`)
+
+Exactly one is required.
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--mac` | `-m` | Client MAC, matched case-insensitively |
+| `--name` | `-n` | Client name or hostname; an ambiguous name is an error |
+
+### Other Flags
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--filter` | | Only list entries containing this substring (name, hostname, MAC, or fixed IP) |
+| `--json` | `-j` | Output in JSON format |
+| `--dry-run` | | Show what would be done without making changes |
+
+### Connection Flags and Environment Variables
+
+Same as `gofips`.
+
+### Behavior: `--del` Mode
+
+1. Resolve the identifier to exactly one user record.
+2. If the record has a fixed IP, clear it via `client.Users().ClearFixedIP()`.
+3. Forget the client via `client.Clients().Forget()`.
+
+The fixed IP is cleared *first* so the address is released even when the forget is
+rejected, rather than stranding a reservation on a record the operator believes is
+gone. The result reports both steps independently.
+
+### Text Output Format
+
+```
+NAME     HOSTNAME   MAC                FIXED-IP                FLAGS    ID
+phone    -          aa:bb:cc:00:00:02  -                       -        6a55728264d5a843350c56dd
+tapo1    plug       aa:bb:cc:00:00:01  192.168.2.10            -        6a650dc664d5a843350f2f52
+old      -          aa:bb:cc:00:00:03  192.168.2.99 (dynamic)  blocked  6a650dc664d5a843350f2f53
+```
+
+A `fixed_ip` left on a record whose `use_fixedip` is false is marked `(dynamic)`:
+the controller ignores it, so it must not read as a live reservation.
+
+### Project Layout
+
+```
+utilities/
+  gofiuser/
+    main.go           # Entry point, flag parsing, mode dispatch
+    operations.go     # list/del business logic, user matching
+    format.go         # Text and JSON output
+```
+
+## Controller API Quirks
+
+Behaviors confirmed against a UDM Pro that differ from what the endpoint shape
+suggests. The mock server reproduces each one so code cannot pass against the mock
+and fail against hardware.
+
+| Endpoint | Quirk |
+|----------|-------|
+| `POST cmd/stamgr` `forget-sta` | Batch-only. Requires `"macs": [...]`; the singular `"mac"` field is rejected with 400. Other stamgr commands take `"mac"`. See `batchMACCommands` in `src/services/clientstation.go`. |
+| `DELETE /rest/user/<id>` | Answers 404. `UserService.Delete` cannot remove a client; use `ClientService.Forget`. |
+| `GET /v2/api/site/<site>/static-dns/<id>` | Answers 405. Only the collection is readable, so `DNSService.Get` resolves through `List`. |
+| `/v2/api/site/...` responses | Bare JSON, not the v1 `meta`/`data` envelope. |
+
 ## Commands
 
 ```bash
