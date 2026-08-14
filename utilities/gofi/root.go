@@ -75,8 +75,8 @@ reproducible from a file rather than from click history in the UniFi app.`,
 		newNetworkCommand(),
 		newClientsCommand(),
 		newUsersCommand(),
+		newProfileCommand(),
 	)
-	// newProfileCommand() is added by Phase 6.
 	return root
 }
 

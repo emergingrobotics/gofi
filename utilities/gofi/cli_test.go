@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -119,6 +120,46 @@ func TestClientsVendor_worksWithoutAControllerSession(t *testing.T) {
 	cmd.SetArgs([]string{"vendor", "b4:0e:cf:2a:85:6f"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("clients vendor: %v (should need no controller connection)", err)
+	}
+}
+
+func TestProfileImport_rejectsMalformedJSON(t *testing.T) {
+	cmd := newProfileCommand()
+	cmd.SetIn(strings.NewReader(`not json`))
+	cmd.SetArgs([]string{"import", "--dry-run"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("profile import with malformed JSON: error = nil, want a usage error")
+	}
+	if !errors.Is(err, errUsage) {
+		t.Errorf("profile import with malformed JSON: error = %v, want errUsage", err)
+	}
+}
+
+// TestProfileImport_readsFromStdinWithNoArgs exercises the same wiring as
+// the brief's suggested test (well-formed JSON on stdin, no positional
+// file), but clears every credential env var first. This sandbox happens to
+// carry real UNIFI_API_KEY/UNIFI_CONSOLE_ID values, and connect() honors
+// them unconditionally (C-GLOBAL-006..010) -- without clearing them, this
+// test would make a live network call to api.ui.com with real credentials.
+// With credentials cleared, ReadProfile/JSON-decode wiring is still
+// exercised (a usage error would surface first if it weren't), and connect()
+// fails deterministically before any network I/O.
+func TestProfileImport_readsFromStdinWithNoArgs(t *testing.T) {
+	for _, k := range []string{"UNIFI_API_KEY", "UNIFI_CONSOLE_ID", "UNIFI_USERNAME", "UNIFI_PASSWORD", "UNIFI_CONTROLLER_IP"} {
+		t.Setenv(k, "")
+	}
+	t.Setenv("GOFI_CONFIG", filepath.Join(t.TempDir(), "config.toml"))
+
+	cmd := newProfileCommand()
+	cmd.SetIn(strings.NewReader(`{"site":"default"}`))
+	cmd.SetArgs([]string{"import", "--dry-run"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("profile import: error = nil, want a connection error (no credentials in test env)")
+	}
+	if errors.Is(err, errUsage) {
+		t.Errorf("profile import: error = %v, want a connection failure, not a usage error (JSON parsed fine)", err)
 	}
 }
 
