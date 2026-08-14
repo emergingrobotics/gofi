@@ -149,7 +149,10 @@ func TestLookup_EmptyMAC(t *testing.T) {
 
 func TestOUIDatabasePath_Default(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", "")
-	path := ouiDatabasePath()
+	path, err := ouiDatabasePath()
+	if err != nil {
+		t.Fatalf("ouiDatabasePath: %v", err)
+	}
 	if !strings.HasSuffix(path, ".local/share/gofi/oui.txt") {
 		t.Errorf("unexpected default path: %s", path)
 	}
@@ -157,7 +160,10 @@ func TestOUIDatabasePath_Default(t *testing.T) {
 
 func TestOUIDatabasePath_XDGOverride(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", "/tmp/test-xdg")
-	path := ouiDatabasePath()
+	path, err := ouiDatabasePath()
+	if err != nil {
+		t.Fatalf("ouiDatabasePath: %v", err)
+	}
 	if path != "/tmp/test-xdg/gofi/oui.txt" {
 		t.Errorf("expected /tmp/test-xdg/gofi/oui.txt, got %s", path)
 	}

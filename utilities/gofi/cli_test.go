@@ -96,6 +96,14 @@ func TestDNSRm_requiresExactlyOneIdentifier(t *testing.T) {
 	}
 }
 
+func TestClientsList_rejectsWifiAndWiredTogether(t *testing.T) {
+	cmd := newClientsCommand()
+	cmd.SetArgs([]string{"list", "--wifi", "--wired"})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("clients list --wifi --wired: error = nil, want a usage error")
+	}
+}
+
 func TestNetworkShow_requiresOneArg(t *testing.T) {
 	cmd := newNetworkCommand()
 	cmd.SetArgs([]string{"show"})

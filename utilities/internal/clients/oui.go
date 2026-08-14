@@ -9,12 +9,13 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/unifi-go/gofi/utilities/internal/config"
 )
 
 const (
 	ouiDatabaseURL      = "https://standards-oui.ieee.org/oui/oui.txt"
 	ouiMaxAgeDays       = 30
-	ouiDefaultDataDir   = ".local/share/gofi"
 	ouiFileName         = "oui.txt"
 	ouiHexMarker        = "(hex)"
 	ouiMACOctetCount    = 3
@@ -47,7 +48,10 @@ func (database *OUIDatabase) Lookup(macAddress string) string {
 
 // LoadOUIDatabase downloads the IEEE OUI file if missing or stale (>30 days) before parsing.
 func LoadOUIDatabase() (*OUIDatabase, error) {
-	databasePath := ouiDatabasePath()
+	databasePath, err := ouiDatabasePath()
+	if err != nil {
+		return nil, err
+	}
 
 	if err := ensureOUIFreshness(databasePath); err != nil {
 		return nil, err
@@ -99,18 +103,12 @@ func ParseOUIDatabase(reader io.Reader) (*OUIDatabase, error) {
 	return &OUIDatabase{entries: entries}, nil
 }
 
-func ouiDatabasePath() string {
-	dataHome := os.Getenv("XDG_DATA_HOME")
-	if dataHome == "" {
-		homeDirectory, err := os.UserHomeDir()
-		if err != nil {
-			homeDirectory = "."
-		}
-		dataHome = filepath.Join(homeDirectory, ouiDefaultDataDir)
-	} else {
-		dataHome = filepath.Join(dataHome, "gofi")
+func ouiDatabasePath() (string, error) {
+	dataDir, err := config.DataDir("gofi")
+	if err != nil {
+		return "", err
 	}
-	return filepath.Join(dataHome, ouiFileName)
+	return filepath.Join(dataDir, ouiFileName), nil
 }
 
 func ensureOUIFreshness(databasePath string) error {
