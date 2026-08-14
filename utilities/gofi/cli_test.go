@@ -104,6 +104,16 @@ func TestClientsList_rejectsWifiAndWiredTogether(t *testing.T) {
 	}
 }
 
+func TestClientsVendor_worksWithoutAControllerSession(t *testing.T) {
+	cmd := newClientsCommand()
+	// No --host, --target, or credentials given: this must not attempt to
+	// connect (I-CLIENTS-001).
+	cmd.SetArgs([]string{"vendor", "b4:0e:cf:2a:85:6f"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("clients vendor: %v (should need no controller connection)", err)
+	}
+}
+
 func TestNetworkShow_requiresOneArg(t *testing.T) {
 	cmd := newNetworkCommand()
 	cmd.SetArgs([]string{"show"})
