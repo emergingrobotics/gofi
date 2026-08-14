@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"strings"
 	"testing"
 
@@ -290,5 +291,36 @@ func TestDoDelNoMatch(t *testing.T) {
 	var progress bytes.Buffer
 	if _, err := DoDel(context.Background(), client, "default", DeleteIdentifier{ID: "missing"}, false, false, &progress); err == nil {
 		t.Fatal("Expected an error when nothing matches")
+	}
+}
+
+func TestDoDel_notFoundIsErrNotFound(t *testing.T) {
+	server, client := newTestClient(t)
+	defer server.Close()
+
+	var progress bytes.Buffer
+	_, err := DoDel(context.Background(), client, "default", DeleteIdentifier{ID: "missing"}, false, false, &progress)
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("DoDel() error = %v, want ErrNotFound", err)
+	}
+	if errors.Is(err, ErrAmbiguous) {
+		t.Errorf("DoDel() error = %v, should not also be ErrAmbiguous", err)
+	}
+}
+
+func TestDoDel_ambiguousIsErrAmbiguous(t *testing.T) {
+	server, client := newTestClient(t)
+	defer server.Close()
+
+	seed(server, "dns1", "a.example.com", "192.168.1.1")
+	seed(server, "dns2", "alias.example.com", "192.168.1.1")
+
+	var progress bytes.Buffer
+	_, err := DoDel(context.Background(), client, "default", DeleteIdentifier{IP: "192.168.1.1"}, false, false, &progress)
+	if !errors.Is(err, ErrAmbiguous) {
+		t.Errorf("DoDel() error = %v, want ErrAmbiguous", err)
+	}
+	if errors.Is(err, ErrNotFound) {
+		t.Errorf("DoDel() error = %v, should not also be ErrNotFound", err)
 	}
 }

@@ -87,3 +87,11 @@ func TestIPsAdd_rejectsFlagsAndPositionalTogether(t *testing.T) {
 		t.Fatal("ips add with both flags and a positional declaration: error = nil, want a usage error")
 	}
 }
+
+func TestDNSRm_requiresExactlyOneIdentifier(t *testing.T) {
+	cmd := newDNSCommand()
+	cmd.SetArgs([]string{"rm"})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("dns rm with no identifier: error = nil, want a usage error")
+	}
+}

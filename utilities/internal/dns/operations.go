@@ -2,6 +2,7 @@ package dns
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -9,6 +10,14 @@ import (
 
 	gofi "github.com/unifi-go/gofi/src"
 	"github.com/unifi-go/gofi/src/types"
+)
+
+var (
+	// ErrNotFound means the identifier matched nothing (exit 1: a real error).
+	ErrNotFound = errors.New("no matching record")
+	// ErrAmbiguous means the identifier matched more than one record without
+	// --force (exit 3: a guard refusal, C-DNS-003).
+	ErrAmbiguous = errors.New("ambiguous match")
 )
 
 // DNSEntry is the flattened view of a local DNS record that gofidns reports.
@@ -135,11 +144,11 @@ func DoDel(ctx context.Context, client gofi.Client, site string, identifier Dele
 
 	matches := matchRecords(records, identifier)
 	if len(matches) == 0 {
-		return nil, fmt.Errorf("no DNS record found for %s", describeIdentifier(identifier))
+		return nil, fmt.Errorf("%w: no DNS record found for %s", ErrNotFound, describeIdentifier(identifier))
 	}
 
 	if len(matches) > 1 && !force {
-		return nil, fmt.Errorf("%s matches %d records; pass --force to delete them all", describeIdentifier(identifier), len(matches))
+		return nil, fmt.Errorf("%w: %s matches %d records; pass --force to delete them all", ErrAmbiguous, describeIdentifier(identifier), len(matches))
 	}
 
 	result := &DeleteResult{}

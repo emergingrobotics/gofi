@@ -71,9 +71,10 @@ reproducible from a file rather than from click history in the UniFi app.`,
 	root.AddCommand(
 		newConfigCommand(),
 		newIPsCommand(),
+		newDNSCommand(),
 	)
-	// newDNSCommand(), newNetworkCommand(), newClientsCommand(),
-	// newUsersCommand(), newProfileCommand() are added by Phases 2-6.
+	// newNetworkCommand(), newClientsCommand(), newUsersCommand(),
+	// newProfileCommand() are added by Phases 3-6.
 	return root
 }
 
