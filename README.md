@@ -86,15 +86,95 @@ make examples       # build the example programs into ./bin/examples
 
 ## Step 3 — Shell completion (optional)
 
-Shell completion is built in. Install it for faster command entry:
+`gofi completion <shell>` doesn't configure anything by itself — it prints a completion
+script to stdout. What you do with that output determines whether completion is
+temporary (this shell session only) or permanent (every new shell).
+
+**Try it first, without installing anything:**
+
+```bash
+source <(gofi completion bash)   # bash
+gofi completion zsh | source     # zsh (as a one-off; see below for the real setup)
+```
+
+Completion works for this shell session only; open a new terminal and it's gone. Use
+this to confirm completion behaves the way you want before wiring it in permanently.
+
+**Install permanently:**
+
+<details>
+<summary>bash</summary>
+
+Requires the `bash-completion` package (`apt install bash-completion`, `brew install
+bash-completion`, etc.) — without it, sourced completion scripts are silently ignored.
+
+System-wide (needs root, affects every user):
 
 ```bash
 gofi completion bash | sudo tee /etc/bash_completion.d/gofi > /dev/null
-# or
-gofi completion zsh | sudo tee /usr/local/share/zsh/site-functions/_gofi > /dev/null
 ```
 
-Available shells: `bash`, `zsh`, `fish`, `powershell`.
+Per-user, no root required:
+
+```bash
+mkdir -p ~/.local/share/bash-completion/completions
+gofi completion bash > ~/.local/share/bash-completion/completions/gofi
+```
+
+Restart your shell, or `source` the file directly, to pick it up.
+
+</details>
+
+<details>
+<summary>zsh</summary>
+
+Pick a directory already on your `fpath` (check with `echo $fpath`), or add one:
+
+```bash
+mkdir -p ~/.zsh/completions
+gofi completion zsh > ~/.zsh/completions/_gofi
+```
+
+Then, in `~/.zshrc`, before the `compinit` line:
+
+```zsh
+fpath=(~/.zsh/completions $fpath)
+autoload -Uz compinit && compinit
+```
+
+If you use a framework (oh-my-zsh, prezto), drop `_gofi` into its custom completions
+directory instead (e.g. `~/.oh-my-zsh/custom/completions/`) and skip the `fpath` edit.
+
+Restart your shell after making this change — `zsh` only rebuilds its completion cache
+on `compinit`.
+
+</details>
+
+<details>
+<summary>fish</summary>
+
+```fish
+gofi completion fish > ~/.config/fish/completions/gofi.fish
+```
+
+Picked up automatically in new fish sessions — no restart-triggering config edit needed.
+
+</details>
+
+<details>
+<summary>powershell</summary>
+
+```powershell
+gofi completion powershell | Out-String | Invoke-Expression
+```
+
+To make this permanent, add that line to your PowerShell profile (`$PROFILE`).
+
+</details>
+
+Once installed, `gofi <TAB>` lists areas, `gofi ips <TAB>` lists actions, and
+`gofi ips add --<TAB>` lists flags. Flag *values* (router names, MAC addresses, bands)
+don't complete — only the command and flag names themselves.
 
 ## Migrating from the old tools
 
