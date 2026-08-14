@@ -120,139 +120,6 @@ job using the table below.
 `--target <name>` (via `gofi config init`) replaces repeating `-H`/`-k`/`-S` on every
 invocation.
 
-## The utilities
-
-The three utilities support **both** auth modes described above; the API-key path is
-preferred. In every command below, `-H` sets the host for username/password mode and is
-ignored in connector mode.
-
-### gofips — fixed IP + DNS management
-
-Manages fixed IP (DHCP reservation) assignments **with hostnames and DNS records**, using
-the industry-standard ISC DHCP `dhcpd.conf` host-declaration format. This is the tool for
-bulk fixed-IP management; it replaces the older `fixedips` / `addfixedip` / `delfixedip`
-examples by adding hostname and DNS support.
-
-**Export current assignments** (dump to disk, edit, push back):
-
-```bash
-gofi ips export > hosts.conf
-```
-
-Assignments are emitted sorted by IP, where the `host <name>` label is the DNS name:
-
-```
-# gofips fixed IP assignments
-# exported from UDM at 192.168.1.1
-
-host myserver {
-    hardware ethernet aa:bb:cc:dd:ee:01;
-    fixed-address 192.168.1.10;
-}
-
-host printer {
-    hardware ethernet aa:bb:cc:dd:ee:02;
-    fixed-address 192.168.1.11;
-}
-```
-
-**Import (bulk provision) from a file or stdin:**
-
-```bash
-gofi ips import hosts.conf
-cat hosts.conf | gofi ips import
-```
-
-Input is fully validated before any change is made; unchanged entries are skipped, and the
-network for each IP is auto-detected from configured subnets. Add `--dry-run` to preview.
-
-**Add or delete a single host:**
-
-```bash
-gofi ips add 'host mydev { hardware ethernet aa:bb:cc:dd:ee:ff; fixed-address 192.168.1.50; }'
-gofi ips rm --name mydev   # or --mac / --ip
-```
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--get` | `-g` | Export assignments to stdout in ISC DHCP format |
-| `--set` | `-s` | Import host declarations from a file or stdin |
-| `--add` | `-a` | Add a single host from an ISC DHCP declaration |
-| `--del` | `-d` | Delete a host by `--name`, `--mac`, or `--ip` |
-| `--force` | `-f` | Skip conflict checks; force delete of the user record |
-| `--keep-dns` | `-K` | Preserve DNS records when deleting |
-| `--dry-run` | | Preview changes without applying |
-| `--host` | `-H` | UDM Pro host address (or set `UNIFI_CONTROLLER_IP`) |
-| `--port` | `-p` | Port (default: 443) |
-| `--site` | `-S` | Site name (default: "default") |
-| `--secure` | `-k` | Enforce TLS certificate verification (default: accept self-signed) |
-
-See [utilities/gofips/README.md](./utilities/gofips/README.md) and
-[utilities/docs/gofips/DESIGN.md](./utilities/docs/gofips/DESIGN.md) for details.
-
-> **Known limitation in connector mode:** `--get`, `--set`, and `--add` normally
-> cross-check entries against the UDM's live local DNS to catch drift and overlaps. That
-> check needs a directly-reachable controller, which connector mode does not provide, so
-> the drift/overlap audit is skipped through the connector. Fixed-IP and DNS record
-> management via the API is unaffected.
-
-### gofimac — connected clients with manufacturer lookup
-
-Lists connected clients (wired, WiFi, or all) with manufacturer identification looked up
-independently from the IEEE OUI database rather than the UDM's built-in fingerprinting.
-
-```bash
-gofi clients list              # all connected clients (default)
-gofi clients list --wifi       # WiFi clients only
-gofi clients list --wired      # wired clients only
-gofi --output json clients list  # JSON output
-```
-
-Text output is tab-separated (MAC, IP, hostname, manufacturer), sorted by IP:
-
-```
-aa:bb:cc:dd:ee:01	192.168.1.10	myserver	Dell Inc.
-aa:bb:cc:dd:ee:02	192.168.1.11	printer	Hewlett Packard
-```
-
-The IEEE OUI database is cached under `$XDG_DATA_HOME/gofimac/` (default
-`~/.local/share/gofimac/`) and refreshed automatically when older than 30 days. If a
-refresh fails, the cached copy is used with a warning.
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--wifi` | `-w` | List only WiFi clients |
-| `--wired` | `-e` | List only wired clients |
-| `--all` | `-a` | List all clients (default) |
-| `--json` | `-j` | Output JSON instead of text |
-| `--host` | `-H` | UDM Pro host address (or set `UNIFI_CONTROLLER_IP`) |
-| `--port` | `-p` | Port (default: 443) |
-| `--site` | `-S` | Site name (default: "default") |
-| `--secure` | `-k` | Enforce TLS certificate verification (default: accept self-signed) |
-
-See [utilities/gofimac/README.md](./utilities/gofimac/README.md) and
-[utilities/docs/gofimac/DESIGN.md](./utilities/docs/gofimac/DESIGN.md) for details.
-
-### gofinet — networks, subnets, and DHCP pools
-
-Lists networks with their subnet and DHCP dynamic address pool, so you know which addresses
-are safe for static reservations. It is the companion to `gofi ips`.
-
-```bash
-gofi network list              # all networks
-gofi --output json network list  # JSON output
-```
-
-```
-NETWORK     VLAN  SUBNET           DHCP-POOL                        LEASE   GATEWAY  DNS
-Default     -     192.168.4.1/24   192.168.4.100 - 192.168.4.189    86400s  -        1.1.1.1,8.8.8.8
-cj-iot      2     192.168.10.1/24  192.168.10.100 - 192.168.10.200  86400s  -        -
-Internet 1  -     -                (disabled)                       -       -        -
-```
-
-Networks with no active DHCP server (WAN, vlan-only) show `(disabled)`. See
-[utilities/gofinet/README.md](./utilities/gofinet/README.md) for details.
-
 ## The example programs
 
 The [`examples/`](./examples/) directory holds small, focused programs that demonstrate the
@@ -582,7 +449,9 @@ gofi/
 │   ├── mock/          # Mock server for testing
 │   └── internal/      # Internal utilities
 ├── examples/          # Example programs
-└── utilities/         # Command-line tools (gofips, gofimac, gofinet)
+└── utilities/         # CLI tool and shared utilities
+    ├── gofi/          # Command-line interface
+    └── internal/      # Shared internal packages
 ```
 
 ---
