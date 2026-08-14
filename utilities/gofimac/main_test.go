@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/unifi-go/gofi/utilities/internal/clients"
 )
 
 func TestReportProbe_PresentReturnsZero(t *testing.T) {
-	entry := &ClientEntry{MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.10", Hostname: "here", Manufacturer: "Acme", Status: statusPresent}
+	entry := &clients.ClientEntry{MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.10", Hostname: "here", Manufacturer: "Acme", Status: clients.StatusPresent}
 
 	var out, errOut bytes.Buffer
 	code, err := reportProbe(&out, &errOut, entry, entry.MAC, false, 0)
@@ -23,7 +25,7 @@ func TestReportProbe_PresentReturnsZero(t *testing.T) {
 }
 
 func TestReportProbe_GoneReturnsOne(t *testing.T) {
-	entry := &ClientEntry{MAC: "aa:bb:cc:dd:ee:02", Hostname: "left", Manufacturer: "Acme", Status: statusGone}
+	entry := &clients.ClientEntry{MAC: "aa:bb:cc:dd:ee:02", Hostname: "left", Manufacturer: "Acme", Status: clients.StatusGone}
 
 	var out, errOut bytes.Buffer
 	code, err := reportProbe(&out, &errOut, entry, entry.MAC, false, 0)

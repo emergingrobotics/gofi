@@ -1,4 +1,4 @@
-package main
+package clients
 
 import (
 	"bufio"
@@ -14,7 +14,7 @@ import (
 const (
 	ouiDatabaseURL      = "https://standards-oui.ieee.org/oui/oui.txt"
 	ouiMaxAgeDays       = 30
-	ouiDefaultDataDir   = ".local/share/gofimac"
+	ouiDefaultDataDir   = ".local/share/gofi"
 	ouiFileName         = "oui.txt"
 	ouiHexMarker        = "(hex)"
 	ouiMACOctetCount    = 3
@@ -108,7 +108,7 @@ func ouiDatabasePath() string {
 		}
 		dataHome = filepath.Join(homeDirectory, ouiDefaultDataDir)
 	} else {
-		dataHome = filepath.Join(dataHome, "gofimac")
+		dataHome = filepath.Join(dataHome, "gofi")
 	}
 	return filepath.Join(dataHome, ouiFileName)
 }

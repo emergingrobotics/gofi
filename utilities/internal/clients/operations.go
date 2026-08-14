@@ -1,4 +1,4 @@
-package main
+package clients
 
 import (
 	"context"
@@ -32,16 +32,16 @@ const (
 )
 
 const (
-	statusPresent = "present"
-	statusGone    = "gone"
+	StatusPresent = "present"
+	StatusGone    = "gone"
 )
 
 // macProbeWindowHours bounds how far back a --mac probe searches history when the
 // device is not currently active, so it can still report a last-known "gone" state.
 const macProbeWindowHours = 8760 // 1 year
 
-// parseSortMode maps a --sort flag value to a SortMode.
-func parseSortMode(value string) (SortMode, error) {
+// ParseSortMode maps a --sort flag value to a SortMode.
+func ParseSortMode(value string) (SortMode, error) {
 	switch value {
 	case "first-seen":
 		return SortFirstSeen, nil
@@ -209,9 +209,9 @@ func matchesFilter(client types.Client, filter FilterMode) bool {
 }
 
 func buildClientEntry(client types.Client, ouiDatabase *OUIDatabase, present bool) ClientEntry {
-	status := statusGone
+	status := StatusGone
 	if present {
-		status = statusPresent
+		status = StatusPresent
 	}
 	entry := ClientEntry{
 		MAC:          strings.ToLower(client.MAC),

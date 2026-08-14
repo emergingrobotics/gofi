@@ -1,4 +1,4 @@
-package main
+package clients
 
 import (
 	"strings"
@@ -150,7 +150,7 @@ func TestLookup_EmptyMAC(t *testing.T) {
 func TestOUIDatabasePath_Default(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", "")
 	path := ouiDatabasePath()
-	if !strings.HasSuffix(path, ".local/share/gofimac/oui.txt") {
+	if !strings.HasSuffix(path, ".local/share/gofi/oui.txt") {
 		t.Errorf("unexpected default path: %s", path)
 	}
 }
@@ -158,7 +158,7 @@ func TestOUIDatabasePath_Default(t *testing.T) {
 func TestOUIDatabasePath_XDGOverride(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", "/tmp/test-xdg")
 	path := ouiDatabasePath()
-	if path != "/tmp/test-xdg/gofimac/oui.txt" {
-		t.Errorf("expected /tmp/test-xdg/gofimac/oui.txt, got %s", path)
+	if path != "/tmp/test-xdg/gofi/oui.txt" {
+		t.Errorf("expected /tmp/test-xdg/gofi/oui.txt, got %s", path)
 	}
 }

@@ -1,4 +1,4 @@
-package main
+package clients
 
 import (
 	"fmt"
@@ -15,10 +15,10 @@ const (
 	durationMonth = 30 * durationDay
 )
 
-// parseDuration parses a compound duration string supporting s, m, h, d, w, and
+// ParseDuration parses a compound duration string supporting s, m, h, d, w, and
 // mo units, because the standard time.ParseDuration lacks day/week/month units.
 // Examples: "30m", "24h", "7d", "2w", "3mo", "1w2d".
-func parseDuration(input string) (time.Duration, error) {
+func ParseDuration(input string) (time.Duration, error) {
 	if input == "" {
 		return 0, fmt.Errorf("empty duration")
 	}
@@ -73,9 +73,9 @@ func parseDuration(input string) (time.Duration, error) {
 	return total, nil
 }
 
-// durationToHours converts a duration to whole hours, rounding up, for the UDM
+// DurationToHours converts a duration to whole hours, rounding up, for the UDM
 // ListAll "within" parameter which is expressed in hours.
-func durationToHours(duration time.Duration) int {
+func DurationToHours(duration time.Duration) int {
 	hours := int(duration / time.Hour)
 	if duration%time.Hour != 0 {
 		hours++

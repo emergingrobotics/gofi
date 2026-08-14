@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/unifi-go/gofi/src"
+	"github.com/unifi-go/gofi/utilities/internal/clients"
 	"github.com/unifi-go/gofi/utilities/internal/conn"
 )
 
@@ -123,16 +124,16 @@ func main() {
 		probeMAC = parsed.String()
 	}
 
-	sortMode, err := parseSortMode(*sortKey)
+	sortMode, err := clients.ParseSortMode(*sortKey)
 	if err != nil {
 		exitError(err.Error())
 	}
 
-	filter := FilterAll
+	filter := clients.FilterAll
 	if *wifi {
-		filter = FilterWifi
+		filter = clients.FilterWifi
 	} else if *wired {
-		filter = FilterWired
+		filter = clients.FilterWired
 	}
 
 	historyMode := *since != "" || gone.set
@@ -145,11 +146,11 @@ func main() {
 				windowString = defaultGoneWindow
 			}
 		}
-		window, parseErr := parseDuration(windowString)
+		window, parseErr := clients.ParseDuration(windowString)
 		if parseErr != nil {
 			exitError(parseErr.Error())
 		}
-		withinHours = durationToHours(window)
+		withinHours = clients.DurationToHours(window)
 	}
 
 	config, err := conn.ResolveConfig(os.Stderr, *host, *port, *site, *secure)
@@ -158,7 +159,7 @@ func main() {
 	}
 
 	// Load OUI database before connecting
-	ouiDatabase, err := LoadOUIDatabase()
+	ouiDatabase, err := clients.LoadOUIDatabase()
 	if err != nil {
 		exitError(err.Error())
 	}
@@ -188,7 +189,7 @@ func main() {
 
 	if probeMAC != "" {
 		fmt.Fprintf(os.Stderr, "Probing %s...\n", probeMAC)
-		entry, probeErr := FindClientByMAC(ctx, apiClient, *site, probeMAC, ouiDatabase)
+		entry, probeErr := clients.FindClientByMAC(ctx, apiClient, *site, probeMAC, ouiDatabase)
 		if probeErr != nil {
 			exitError("failed to probe MAC: " + probeErr.Error())
 		}
@@ -199,28 +200,28 @@ func main() {
 		os.Exit(code)
 	}
 
-	if historyMode && filter != FilterAll {
+	if historyMode && filter != clients.FilterAll {
 		fmt.Fprintf(os.Stderr, "Warning: link-type filtering may be unreliable for departed devices\n")
 	}
 
-	var entries []ClientEntry
+	var entries []clients.ClientEntry
 	if historyMode {
 		fmt.Fprintf(os.Stderr, "Fetching client history...\n")
-		entries, err = ListClientsHistory(ctx, apiClient, *site, filter, sortMode, withinHours, gone.set, ouiDatabase)
+		entries, err = clients.ListClientsHistory(ctx, apiClient, *site, filter, sortMode, withinHours, gone.set, ouiDatabase)
 	} else {
 		fmt.Fprintf(os.Stderr, "Fetching active clients...\n")
-		entries, err = ListClients(ctx, apiClient, *site, filter, sortMode, ouiDatabase)
+		entries, err = clients.ListClients(ctx, apiClient, *site, filter, sortMode, ouiDatabase)
 	}
 	if err != nil {
 		exitError("failed to list clients: " + err.Error())
 	}
 
 	if *jsonOut {
-		if err := FormatJSON(os.Stdout, entries); err != nil {
+		if err := clients.FormatJSON(os.Stdout, entries); err != nil {
 			exitError("failed to write JSON output: " + err.Error())
 		}
 	} else {
-		if err := FormatText(os.Stdout, entries, historyMode, now); err != nil {
+		if err := clients.FormatText(os.Stdout, entries, historyMode, now); err != nil {
 			exitError("failed to write output: " + err.Error())
 		}
 	}
@@ -229,27 +230,27 @@ func main() {
 // reportProbe writes the outcome of a single-MAC probe and returns the process
 // exit code: 0 when the device is present, 1 when it is gone or was not found.
 // Device output goes to out; the not-found status message goes to errOut.
-func reportProbe(out, errOut io.Writer, entry *ClientEntry, mac string, jsonOut bool, now int64) (int, error) {
+func reportProbe(out, errOut io.Writer, entry *clients.ClientEntry, mac string, jsonOut bool, now int64) (int, error) {
 	if entry == nil {
 		fmt.Fprintf(errOut, "MAC %s not found\n", mac)
 		if jsonOut {
-			return 1, FormatJSON(out, []ClientEntry{})
+			return 1, clients.FormatJSON(out, []clients.ClientEntry{})
 		}
 		return 1, nil
 	}
 
-	entries := []ClientEntry{*entry}
+	entries := []clients.ClientEntry{*entry}
 	var writeErr error
 	if jsonOut {
-		writeErr = FormatJSON(out, entries)
+		writeErr = clients.FormatJSON(out, entries)
 	} else {
-		writeErr = FormatText(out, entries, true, now)
+		writeErr = clients.FormatText(out, entries, true, now)
 	}
 	if writeErr != nil {
 		return 1, writeErr
 	}
 
-	if entry.Status == statusPresent {
+	if entry.Status == clients.StatusPresent {
 		return 0, nil
 	}
 	return 1, nil

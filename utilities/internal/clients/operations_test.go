@@ -1,4 +1,4 @@
-package main
+package clients
 
 import (
 	"strings"
@@ -230,17 +230,17 @@ func TestParseSortMode(t *testing.T) {
 		{"ip", SortIP},
 	}
 	for _, testCase := range cases {
-		result, err := parseSortMode(testCase.input)
+		result, err := ParseSortMode(testCase.input)
 		if err != nil {
-			t.Errorf("parseSortMode(%q) unexpected error: %v", testCase.input, err)
+			t.Errorf("ParseSortMode(%q) unexpected error: %v", testCase.input, err)
 			continue
 		}
 		if result != testCase.expected {
-			t.Errorf("parseSortMode(%q) = %d, want %d", testCase.input, result, testCase.expected)
+			t.Errorf("ParseSortMode(%q) = %d, want %d", testCase.input, result, testCase.expected)
 		}
 	}
-	if _, err := parseSortMode("bogus"); err == nil {
-		t.Error("parseSortMode(\"bogus\") expected error, got nil")
+	if _, err := ParseSortMode("bogus"); err == nil {
+		t.Error("ParseSortMode(\"bogus\") expected error, got nil")
 	}
 }
 
@@ -311,11 +311,11 @@ func TestBuildHistoryEntries_MarksPresentAndGone(t *testing.T) {
 	for _, entry := range entries {
 		statusByHost[entry.Hostname] = entry.Status
 	}
-	if statusByHost["present-host"] != statusPresent {
-		t.Errorf("present-host status = %q, want %q", statusByHost["present-host"], statusPresent)
+	if statusByHost["present-host"] != StatusPresent {
+		t.Errorf("present-host status = %q, want %q", statusByHost["present-host"], StatusPresent)
 	}
-	if statusByHost["gone-host"] != statusGone {
-		t.Errorf("gone-host status = %q, want %q", statusByHost["gone-host"], statusGone)
+	if statusByHost["gone-host"] != StatusGone {
+		t.Errorf("gone-host status = %q, want %q", statusByHost["gone-host"], StatusGone)
 	}
 }
 
@@ -336,7 +336,7 @@ func TestBuildHistoryEntries_GoneOnlyExcludesPresent(t *testing.T) {
 	if entries[0].Hostname != "gone-host" {
 		t.Errorf("expected gone-host, got %s", entries[0].Hostname)
 	}
-	if entries[0].Status != statusGone {
+	if entries[0].Status != StatusGone {
 		t.Errorf("expected status gone, got %s", entries[0].Status)
 	}
 }
@@ -365,8 +365,8 @@ func TestBuildHistoryEntries_PrefersActiveRecordForPresent(t *testing.T) {
 
 func TestSelectEntryByMAC(t *testing.T) {
 	entries := []ClientEntry{
-		{MAC: "aa:bb:cc:00:00:01", Hostname: "one", Status: statusPresent},
-		{MAC: "aa:bb:cc:00:00:02", Hostname: "two", Status: statusGone},
+		{MAC: "aa:bb:cc:00:00:01", Hostname: "one", Status: StatusPresent},
+		{MAC: "aa:bb:cc:00:00:02", Hostname: "two", Status: StatusGone},
 	}
 
 	found := selectEntryByMAC(entries, "aa:bb:cc:00:00:02")
