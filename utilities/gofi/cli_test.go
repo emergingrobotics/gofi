@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -114,12 +115,51 @@ func TestClientsList_rejectsWifiAndWiredTogether(t *testing.T) {
 }
 
 func TestClientsVendor_worksWithoutAControllerSession(t *testing.T) {
+	seedOUIFixture(t)
+
+	var out bytes.Buffer
 	cmd := newClientsCommand()
+	cmd.SetOut(&out)
 	// No --host, --target, or credentials given: this must not attempt to
 	// connect (I-CLIENTS-001).
 	cmd.SetArgs([]string{"vendor", "b4:0e:cf:2a:85:6f"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("clients vendor: %v (should need no controller connection)", err)
+	}
+	// Also proves the seeded fixture is what answered, rather than the test
+	// silently falling through to a downloaded registry.
+	if !strings.Contains(out.String(), "Texas Instruments") {
+		t.Errorf("clients vendor output = %q, want the manufacturer from the seeded OUI fixture", out.String())
+	}
+}
+
+// seedOUIFixture points XDG_DATA_HOME at a temp dir holding a hand-written,
+// freshly-modified oui.txt in the IEEE "(hex)" line format. Without it,
+// LoadOUIDatabase would find no cache and download the real registry from
+// standards-oui.ieee.org, making `go test ./...` fail offline and crawl on a
+// cold CI run.
+func seedOUIFixture(t *testing.T) {
+	t.Helper()
+
+	dataHome := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", dataHome)
+
+	dir := filepath.Join(dataHome, "gofi")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	fixture := "OUI/MA-L                                                    Organization\n" +
+		"company_id                                                  Organization\n" +
+		"                                                            Address\n\n" +
+		"B4-0E-CF     (hex)\t\tTexas Instruments\n" +
+		"B40ECF     (base 16)\t\tTexas Instruments\n" +
+		"\t\t\t\t12500 TI Blvd\n" +
+		"\t\t\t\tDallas TX 75243\n" +
+		"\t\t\t\tUS\n\n" +
+		"00-1A-2B     (hex)\t\tAyecom Technology Co., Ltd.\n" +
+		"001A2B     (base 16)\t\tAyecom Technology Co., Ltd.\n"
+	if err := os.WriteFile(filepath.Join(dir, "oui.txt"), []byte(fixture), 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -184,6 +224,73 @@ func TestProfileImport_dnsDomainFlagIsAccepted(t *testing.T) {
 	}
 	if errors.Is(err, errUsage) {
 		t.Errorf("profile import --dns-domain: error = %v, want a connection failure, not a usage error (flag should be accepted)", err)
+	}
+}
+
+// TestExitCodes_cobraGeneratedUsageErrors covers the invocations whose errors
+// come from cobra itself rather than from a hand-written check: an unknown
+// command, an unknown flag, and positional-arg validators across several
+// areas. Each must exit 2 under C-GLOBAL-012, not cobra's default 1.
+func TestExitCodes_cobraGeneratedUsageErrors(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{"unknown area", []string{"badarea"}},
+		{"unknown subcommand of an area", []string{"network", "bogus"}},
+		{"unknown flag", []string{"network", "list", "--bogus"}},
+		{"flag missing its value", []string{"network", "list", "--output"}},
+		{"too many args (MaximumNArgs)", []string{"network", "show", "a", "b"}},
+		{"too few args (ExactArgs)", []string{"clients", "vendor"}},
+		{"args on a NoArgs command", []string{"config", "targets", "extra"}},
+		{"too many args on ips import", []string{"ips", "import", "a", "b"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("GOFI_CONFIG", filepath.Join(t.TempDir(), "config.toml"))
+
+			root := newRootCommand()
+			root.SetOut(io.Discard)
+			root.SetErr(io.Discard)
+			root.SetArgs(tc.args)
+
+			err := root.Execute()
+			if err == nil {
+				t.Fatalf("gofi %v: error = nil, want a usage error", tc.args)
+			}
+			if got := codeFor(err); got != exitUsage {
+				t.Errorf("gofi %v: exit code = %d (%v), want %d", tc.args, got, err, exitUsage)
+			}
+		})
+	}
+}
+
+// TestSecureAgainstConnectorTarget_exitsUsage is the end-to-end half of
+// C-GLOBAL-007: conn returns a sentinel, connect() classifies it, codeFor maps
+// it to 2.
+func TestSecureAgainstConnectorTarget_exitsUsage(t *testing.T) {
+	t.Setenv("GOFI_CONFIG", filepath.Join(t.TempDir(), "config.toml"))
+	t.Setenv("UNIFI_API_KEY", "k123")
+	t.Setenv("UNIFI_CONSOLE_ID", "console-abc")
+
+	root := newRootCommand()
+	root.SetOut(io.Discard)
+	root.SetErr(io.Discard)
+	root.SetArgs([]string{"network", "list", "--secure"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("gofi --secure network list against a connector target: error = nil, want a usage error")
+	}
+	if got := codeFor(err); got != exitUsage {
+		t.Errorf("exit code = %d (%v), want %d", got, err, exitUsage)
+	}
+	if !strings.Contains(err.Error(), "--secure") {
+		t.Errorf("error = %v, want it to name --secure", err)
+	}
+	if strings.Contains(err.Error(), "--insecure") {
+		t.Errorf("error = %v, names --insecure, a flag gofi does not have", err)
 	}
 }
 

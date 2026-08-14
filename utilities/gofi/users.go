@@ -17,6 +17,12 @@ func newUsersCommand() *cobra.Command {
 fixed-IP relationship. See "gofi clients" for currently-connected stations
 only -- the two read different backend objects, kept as separate areas
 permanently (VISION.md's Area boundaries).`,
+
+		// Runnable + Args so an unknown subcommand under this area is a
+		// usage error (exit 2) rather than cobra's silent help-with-exit-0
+		// for a non-runnable parent (C-GLOBAL-012).
+		Args: wrapArgsError(unknownSubcommandArgs),
+		RunE: showHelp,
 	}
 	cmd.AddCommand(newUsersListCommand(), newUsersRmCommand())
 	return cmd
@@ -27,7 +33,7 @@ func newUsersListCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List known clients",
-		Args:  cobra.NoArgs,
+		Args:  wrapArgsError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := connect()
 			if err != nil {
@@ -50,7 +56,7 @@ func newUsersRmCommand() *cobra.Command {
 		Use:     "rm",
 		Aliases: []string{"remove"},
 		Short:   "Remove a known client, by --mac/--name",
-		Args:    cobra.NoArgs,
+		Args:    wrapArgsError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if (mac == "") == (name == "") {
 				return fmt.Errorf("%w: pass exactly one of --mac or --name", errUsage)

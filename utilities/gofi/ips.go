@@ -20,6 +20,12 @@ func newIPsCommand() *cobra.Command {
 
 Each host declaration is a paired write: a static bind on the user record,
 and a DNS A record for the hostname. These commands keep the two in step.`,
+
+		// Runnable + Args so an unknown subcommand under this area is a
+		// usage error (exit 2) rather than cobra's silent help-with-exit-0
+		// for a non-runnable parent (C-GLOBAL-012).
+		Args: wrapArgsError(unknownSubcommandArgs),
+		RunE: showHelp,
 	}
 	cmd.AddCommand(
 		newIPsListCommand(),
@@ -48,7 +54,7 @@ func newIPsExportCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "export",
 		Short: "Write every fixed-IP assignment to stdout in ISC DHCP format",
-		Args:  cobra.NoArgs,
+		Args:  wrapArgsError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := connect()
 			if err != nil {
@@ -70,7 +76,7 @@ func newIPsImportCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "import [file]",
 		Short: "Import host declarations from a file, or from stdin",
-		Args:  cobra.MaximumNArgs(1),
+		Args:  wrapArgsError(cobra.MaximumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var reader io.Reader = os.Stdin
 			if len(args) == 1 && args[0] != "-" {
@@ -123,7 +129,7 @@ func newIPsAddCommand() *cobra.Command {
 		Short: "Add one host, by flags or as an ISC DHCP declaration fragment",
 		Example: `  gofi ips add --name nas --mac aa:bb:cc:dd:ee:01 --ip 192.168.1.13
   gofi ips add 'host nas { hardware ethernet aa:bb:cc:dd:ee:01; fixed-address 192.168.1.13; }'`,
-		Args: cobra.MaximumNArgs(1),
+		Args: wrapArgsError(cobra.MaximumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			byFlags := name != "" || mac != "" || ip != ""
 			if len(args) == 1 && byFlags {
@@ -179,7 +185,7 @@ func newIPsRmCommand() *cobra.Command {
 		Use:     "rm",
 		Aliases: []string{"remove"},
 		Short:   "Remove one host, identified by --name, --mac or --ip",
-		Args:    cobra.NoArgs,
+		Args:    wrapArgsError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			count := 0
 			for _, v := range []string{name, mac, ip} {
@@ -225,7 +231,7 @@ is printed before the confirmation prompt, and --yes only skips that prompt
 -- it never substitutes for --force. gofi manages shared infrastructure, so
 this verb needs a stronger floor than a disposable bench router's equivalent
 (C-IPS-007, C-IPS-008).`,
-		Args: cobra.NoArgs,
+		Args: wrapArgsError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if !force {
 				return fmt.Errorf("%w: --force is required; this removes every fixed-IP assignment on the site", errUsage)

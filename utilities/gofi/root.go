@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -34,6 +35,12 @@ const (
 )
 
 func newRootCommand() *cobra.Command {
+	// opts is package-level (every command reads it), so start each command
+	// tree from a clean slate rather than inheriting a previous one's flag
+	// values -- notably opts.secure, which loadConfig only writes when the
+	// flag was actually given.
+	opts = globals{}
+
 	root := &cobra.Command{
 		Use:   "gofi",
 		Short: "Manage a UniFi controller's networks, DNS, reservations, and clients",
@@ -46,6 +53,11 @@ reproducible from a file rather than from click history in the UniFi app.`,
 		SilenceErrors: true,
 		SilenceUsage:  true,
 
+		// Replaces cobra's implicit legacyArgs for a root with
+		// subcommands, which reports an unknown command with a bare
+		// error that would exit 1 instead of 2 (C-GLOBAL-012).
+		Args: wrapArgsError(unknownSubcommandArgs),
+
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			return loadConfig(cmd)
 		},
@@ -55,10 +67,15 @@ reproducible from a file rather than from click history in the UniFi app.`,
 		// registered (Task 0.6 adds the first one, "config"). Bare `gofi`
 		// invocation just shows help, same as cobra's default for a
 		// non-runnable multi-command root.
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
+		RunE: showHelp,
 	}
+
+	// Cobra's own parse failures (unknown flag, malformed value) are plain
+	// errors; without this they would exit 1 instead of the required 2
+	// (C-GLOBAL-012). SetFlagErrorFunc is inherited by every subcommand.
+	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
+		return fmt.Errorf("%w: %s", errUsage, err)
+	})
 
 	flags := root.PersistentFlags()
 	flags.StringVar(&opts.target, "target", "", "named controller+site from the config file")
@@ -78,6 +95,47 @@ reproducible from a file rather than from click history in the UniFi app.`,
 		newProfileCommand(),
 	)
 	return root
+}
+
+// wrapArgsError adapts a positional-argument validator so its rejection
+// carries errUsage, and therefore exit 2 (C-GLOBAL-012). Cobra's built-in
+// validators (ExactArgs, NoArgs, MaximumNArgs) return bare errors, and
+// SetFlagErrorFunc only covers flag parsing, so every `Args:` assignment in
+// the command tree goes through here.
+func wrapArgsError(validator cobra.PositionalArgs) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if err := validator(cmd, args); err != nil {
+			return fmt.Errorf("%w: %s", errUsage, err)
+		}
+		return nil
+	}
+}
+
+// showHelp is the RunE of every command that only groups subcommands. It
+// makes those commands Runnable, which is what lets cobra reach their Args
+// validator instead of short-circuiting to help with exit 0.
+func showHelp(cmd *cobra.Command, _ []string) error { return cmd.Help() }
+
+// unknownSubcommandArgs reproduces cobra's unexported legacyArgs behavior for
+// a command that has subcommands: any leftover positional argument is an
+// unknown command, reported with cobra's own "did you mean" suggestions.
+func unknownSubcommandArgs(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return nil
+	}
+	msg := fmt.Sprintf("unknown command %q for %q", args[0], cmd.CommandPath())
+	if cmd.DisableSuggestions {
+		return errors.New(msg)
+	}
+	// SuggestionsFor uses the field as-is; cobra's own call path applies
+	// this default first, so mirror it or every distance test fails.
+	if cmd.SuggestionsMinimumDistance <= 0 {
+		cmd.SuggestionsMinimumDistance = 2
+	}
+	if suggestions := cmd.SuggestionsFor(args[0]); len(suggestions) > 0 {
+		msg += fmt.Sprintf("\n\nDid you mean this?\n\t%s", strings.Join(suggestions, "\n\t"))
+	}
+	return errors.New(msg)
 }
 
 func loadConfig(cmd *cobra.Command) error {
@@ -118,6 +176,11 @@ func connect() (gofi.Client, error) {
 			return conn.ReadSecret(prompt, "")
 		})
 	if err != nil {
+		// A rejected --secure is a mistake in how the command was invoked,
+		// not a controller/site failure: exit 2, not 1 (C-GLOBAL-007).
+		if errors.Is(err, conn.ErrSecureFlagNotApplicable) {
+			return nil, fmt.Errorf("%w: %s", errUsage, err)
+		}
 		return nil, err
 	}
 

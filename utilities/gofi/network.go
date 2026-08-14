@@ -17,6 +17,12 @@ func newNetworkCommand() *cobra.Command {
 
 Read-only today (C-NETWORK-004): a write endpoint has not yet been verified
 against real hardware.`,
+
+		// Runnable + Args so an unknown subcommand under this area is a
+		// usage error (exit 2) rather than cobra's silent help-with-exit-0
+		// for a non-runnable parent (C-GLOBAL-012).
+		Args: wrapArgsError(unknownSubcommandArgs),
+		RunE: showHelp,
 	}
 	cmd.AddCommand(newNetworkListCommand(), newNetworkShowCommand())
 	return cmd
@@ -26,7 +32,7 @@ func newNetworkListCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List every network on the site",
-		Args:  cobra.NoArgs,
+		Args:  wrapArgsError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := connect()
 			if err != nil {
@@ -50,7 +56,7 @@ func newNetworkShowCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "show <name>",
 		Short: "Report one network in detail",
-		Args:  cobra.MaximumNArgs(1),
+		Args:  wrapArgsError(cobra.MaximumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 1 {
 				return fmt.Errorf("%w: expected exactly one network name", errUsage)

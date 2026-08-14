@@ -3,6 +3,7 @@ package profile
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -69,7 +70,7 @@ func TestApply_skipsNetworksAbsentFromTarget(t *testing.T) {
 		Networks: []network.NetworkEntry{{Name: "Guest"}},
 	}
 	var progress bytes.Buffer
-	if err := Apply(context.Background(), client, p, false, "", &progress); err != nil {
+	if err := Apply(context.Background(), client, "default", p, false, "", &progress); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
 	if !strings.Contains(progress.String(), "Guest") {
@@ -85,7 +86,7 @@ func TestApply_dryRunMakesNoWrites(t *testing.T) {
 	client.networks.networks = []types.Network{{Name: "Default", IPSubnet: "192.168.1.0/24", DomainName: "lan.example.com"}}
 	p := &Profile{FixedIPs: []ips.HostEntry{{Hostname: "nas", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.13"}}}
 
-	if err := Apply(context.Background(), client, p, true, "", io.Discard); err != nil {
+	if err := Apply(context.Background(), client, "default", p, true, "", io.Discard); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
 	if client.WriteCount() != 0 {
@@ -103,7 +104,7 @@ func TestApply_dryRunReportsRealDoSetCounts(t *testing.T) {
 		FixedIPs: []ips.HostEntry{{Hostname: "nas", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.13"}},
 	}
 	var progress bytes.Buffer
-	if err := Apply(context.Background(), client, p, true, "", &progress); err != nil {
+	if err := Apply(context.Background(), client, "default", p, true, "", &progress); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
 	// The entry is already unchanged on the target, so a real DoSet dry run
@@ -119,7 +120,7 @@ func TestApply_skipsWLANsAbsentFromTarget(t *testing.T) {
 		WLANs: []WLANEntry{{Name: "guest-wifi", Enabled: true}},
 	}
 	var progress bytes.Buffer
-	if err := Apply(context.Background(), client, p, false, "", &progress); err != nil {
+	if err := Apply(context.Background(), client, "default", p, false, "", &progress); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
 	if !strings.Contains(progress.String(), "skipping WLAN \"guest-wifi\"") {
@@ -136,7 +137,7 @@ func TestApply_appliesNetworksBeforeFixedIPsBeforeWLANs(t *testing.T) {
 		WLANs:    []WLANEntry{{Name: "guest-wifi", Enabled: true}},
 	}
 	var progress bytes.Buffer
-	if err := Apply(context.Background(), client, p, false, "", &progress); err != nil {
+	if err := Apply(context.Background(), client, "default", p, false, "", &progress); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
 
@@ -161,16 +162,68 @@ func TestApply_dnsDomainOverrideReachesDoSet(t *testing.T) {
 	var progress bytes.Buffer
 
 	// Without an override, this should fail (no network domain, no override given).
-	err := Apply(context.Background(), client, p, false, "", &progress)
+	err := Apply(context.Background(), client, "default", p, false, "", &progress)
 	if err == nil {
 		t.Fatal("Apply() with no dnsDomainOverride and no network domain: error = nil, want a domain-resolution error")
 	}
 
 	// With an override, it should succeed.
 	progress.Reset()
-	err = Apply(context.Background(), client, p, false, "bench.test", &progress)
+	err = Apply(context.Background(), client, "default", p, false, "bench.test", &progress)
 	if err != nil {
 		t.Fatalf("Apply() with dnsDomainOverride = %v, want nil", err)
+	}
+}
+
+// TestApply_writesToTheSiteParameterNotTheProfilesOwn is the regression test
+// for the bug where Apply addressed p.Site, so -S/--site could not retarget an
+// import and a profile with no "site" field applied against site "".
+func TestApply_writesToTheSiteParameterNotTheProfilesOwn(t *testing.T) {
+	client := newMockClientWithNetworks(t, nil)
+	p := &Profile{Site: "captured-site"}
+
+	var progress bytes.Buffer
+	if err := Apply(context.Background(), client, "target-site", p, false, "", &progress); err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+
+	if got := client.networks.sitesSeen; len(got) != 1 || got[0] != "target-site" {
+		t.Errorf("networks listed for sites %v, want [target-site]", got)
+	}
+	if got := client.wlans.sitesSeen; len(got) != 1 || got[0] != "target-site" {
+		t.Errorf("WLANs listed for sites %v, want [target-site]", got)
+	}
+	// A cross-site apply is supported (C-PROFILE-005), but the operator is
+	// told it is happening.
+	out := progress.String()
+	if !strings.Contains(out, "captured-site") || !strings.Contains(out, "target-site") {
+		t.Errorf("progress = %q, want a note naming both the captured and the target site", out)
+	}
+}
+
+func TestApply_siteMismatchIsNotWarnedWhenTheyMatch(t *testing.T) {
+	client := newMockClientWithNetworks(t, nil)
+	p := &Profile{Site: "default"}
+
+	var progress bytes.Buffer
+	if err := Apply(context.Background(), client, "default", p, false, "", &progress); err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	if strings.Contains(progress.String(), "captured from site") {
+		t.Errorf("progress = %q, want no mismatch note when the sites agree", progress.String())
+	}
+}
+
+func TestApply_emptySiteIsAUsageError(t *testing.T) {
+	client := newMockClientWithNetworks(t, []types.Network{{Name: "Default"}})
+	p := &Profile{Networks: []network.NetworkEntry{{Name: "Default"}}}
+
+	err := Apply(context.Background(), client, "", p, false, "", io.Discard)
+	if !errors.Is(err, ErrNoSite) {
+		t.Fatalf("Apply() with an empty site: error = %v, want ErrNoSite", err)
+	}
+	if len(client.networks.sitesSeen) != 0 {
+		t.Errorf("Apply() contacted the controller (sites %v) before rejecting an empty site", client.networks.sitesSeen)
 	}
 }
 
@@ -364,8 +417,9 @@ func (m *mockDNSService) DeleteByName(ctx context.Context, site, name string) er
 
 // mockNetworkService implements services.NetworkService.
 type mockNetworkService struct {
-	networks []types.Network
-	writes   *int // optional write counter, set by newMockClientRecordingWrites
+	networks  []types.Network
+	writes    *int     // optional write counter, set by newMockClientRecordingWrites
+	sitesSeen []string // every site name List was called with, in order
 }
 
 func (m *mockNetworkService) countWrite() {
@@ -375,6 +429,7 @@ func (m *mockNetworkService) countWrite() {
 }
 
 func (m *mockNetworkService) List(ctx context.Context, site string) ([]types.Network, error) {
+	m.sitesSeen = append(m.sitesSeen, site)
 	return m.networks, nil
 }
 
@@ -399,8 +454,9 @@ func (m *mockNetworkService) Delete(ctx context.Context, site, id string) error 
 
 // mockWLANService implements services.WLANService.
 type mockWLANService struct {
-	wlans  []types.WLAN
-	writes *int // optional write counter, set by newMockClientRecordingWrites
+	wlans     []types.WLAN
+	writes    *int     // optional write counter, set by newMockClientRecordingWrites
+	sitesSeen []string // every site name List was called with, in order
 }
 
 func (m *mockWLANService) countWrite() {
@@ -410,6 +466,7 @@ func (m *mockWLANService) countWrite() {
 }
 
 func (m *mockWLANService) List(ctx context.Context, site string) ([]types.WLAN, error) {
+	m.sitesSeen = append(m.sitesSeen, site)
 	return m.wlans, nil
 }
 

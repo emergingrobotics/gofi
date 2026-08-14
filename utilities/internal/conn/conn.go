@@ -1,8 +1,9 @@
 // Package conn resolves UniFi connection configuration from flags and the
-// environment, shared by the gofips/gofimac/gofinet CLIs.
+// environment for the gofi CLI.
 package conn
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -90,14 +91,21 @@ func ResolveConfig(w io.Writer, host string, port int, site string, secure bool)
 	}, nil
 }
 
+// ErrSecureFlagNotApplicable reports that --secure was given against a
+// connector-mode target, where it has no meaning. It is a sentinel rather
+// than a bare error so the CLI layer, which owns the exit-code contract, can
+// classify it as a usage error (C-GLOBAL-007, exit 2) without this package
+// having to import the CLI's error vocabulary.
+var ErrSecureFlagNotApplicable = errors.New("--secure has no effect against a connector target")
+
 // ResolveTargetConfig builds a *gofi.Config from a resolved config target
 // (may be nil), CLI flag overrides, and the environment, implementing
 // C-GLOBAL-006 through C-GLOBAL-010.
 //
 // secureFlag is a pointer so ResolveTargetConfig can tell "the operator
-// passed --secure/--insecure" from "the flag was not given" — required to
-// reject the flag against a connector target (C-GLOBAL-007) rather than
-// silently ignoring it.
+// passed --secure" from "the flag was not given" — required to reject the
+// flag against a connector target (C-GLOBAL-007) rather than silently
+// ignoring it.
 func ResolveTargetConfig(w io.Writer, target *config.Target, hostFlag string, portFlag int, siteFlag string, secureFlag *bool, prompt func() (string, error)) (*gofi.Config, error) {
 	mode := "local"
 	if target != nil {
@@ -109,7 +117,7 @@ func ResolveTargetConfig(w io.Writer, target *config.Target, hostFlag string, po
 
 	if mode == "connector" {
 		if secureFlag != nil {
-			return nil, fmt.Errorf("--secure/--insecure has no effect against a connector target: connector traffic is always TLS-verified")
+			return nil, fmt.Errorf("%w: connector traffic is always TLS-verified", ErrSecureFlagNotApplicable)
 		}
 		return resolveConnectorConfig(w, target, siteFlag, prompt)
 	}

@@ -7,8 +7,9 @@ spec-driven convention, if code and this document disagree, the code is wrong.
 - **[`VISION.md`](VISION.md)** carries the *why*: the product vision, the target
   command tree, the area-boundary reasoning, and the record of decisions from the CLI
   design brainstorm. Read it first for context.
-- **[`CLAUDE.md`](CLAUDE.md)** carries architecture, concurrency rules, and the
-  current (v1) specification of the five flag-mode tools this document supersedes.
+- **[`CLAUDE.md`](CLAUDE.md)** carries the module's architecture, concurrency rules,
+  controller API quirks, and build/test workflow. It no longer specifies the CLI
+  surface; that is this document's job.
 - **This document** is the contract: what the finished `gofi` tree must do, testable
   and traceable, one requirement at a time.
 
@@ -34,6 +35,14 @@ Connection flags, config file, secrets, output, exit codes, write-safety flags. 
 [`network-cli-convention.md`](../network-cli-convention.md) in full; this section is
 gofi's specific commitments under it.
 
+**One documented divergence from the convention's flag naming**: gofi's TLS flag is
+`--secure` (positive sense, default off), not the convention's — and `gogl`'s —
+`--insecure`. TLS verification is off by default here because local UniFi controllers
+ship self-signed certificates, and a default-on negative flag (`--insecure` that must
+almost always be passed) reads backwards for that reality. There is no `--insecure`
+flag and no alias for one; error text names `--secure`. This is the only naming
+divergence, and it is deliberate.
+
 ### Constraints
 
 - **C-GLOBAL-001** [Target] — `gofi` is one binary, `gofi <area> <action>`. The five
@@ -54,8 +63,8 @@ gofi's specific commitments under it.
   variable (`UNIFI_PASSWORD` or `UNIFI_API_KEY`) first, then a `*_command` named in
   `config.toml` for the resolved target, then an interactive prompt with echo off read
   from `/dev/tty`.
-- **C-GLOBAL-007** [Target] — `--secure`/`--insecure` against a connector-mode target
-  (one whose config has `console_id`) is a usage error, exit 2 — never a silent no-op.
+- **C-GLOBAL-007** [Target] — `--secure` against a connector-mode target (one whose
+  config has `console_id`) is a usage error, exit 2 — never a silent no-op.
 - **C-GLOBAL-008** [Shipped] — `UNIFI_API_KEY` selects connector mode; when set
   alongside `UNIFI_USERNAME`/`UNIFI_PASSWORD`, the latter are ignored with a note
   printed to stderr, not silently overridden. `UNIFI_CONSOLE_ID` is required whenever
@@ -373,9 +382,11 @@ the controller.
 
 ## Traceability
 
-Every **Shipped** requirement traces to a section of `CLAUDE.md`'s existing tool
-specs (`gofips`/`gofimac`/`gofinet`/`gofidns`/`gofiuser`) and is expected to hold
-unchanged through the migration unless its entry says otherwise (exit-code changes
+Every **Shipped** requirement traces to behavior that shipped under one of the five
+predecessor binaries (`gofips`/`gofimac`/`gofinet`/`gofidns`/`gofiuser`), whose
+per-tool specifications lived in `CLAUDE.md` until this document replaced them (see
+git history for the original text), and is expected to hold unchanged through the
+migration unless its entry says otherwise (exit-code changes
 under C-GLOBAL-012 are the only systematic exception). Every **Target** or
 **Blocked** requirement traces to `VISION.md`'s proposed tree or its recorded
 brainstorm decisions.

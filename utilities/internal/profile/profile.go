@@ -8,6 +8,7 @@ package profile
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
@@ -84,16 +85,34 @@ func ReadProfile(r io.Reader) (*Profile, error) {
 	return &p, nil
 }
 
+// ErrNoSite reports that Apply was given no target site. It is a sentinel so
+// the CLI layer can classify it as a usage error (exit 2) without this
+// package importing the CLI's error vocabulary.
+var ErrNoSite = errors.New("no target site resolved: pass -S/--site or configure a target")
+
 // Apply applies a profile in the fixed order networks, fixed IPs, WLANs
 // (C-PROFILE-003): fixed IPs must land inside an existing subnet, so
 // networks go first. A network or WLAN the target site lacks is reported
 // and skipped rather than failing the whole run (C-PROFILE-005).
 //
+// site is the site to write to, resolved by the caller from -S/--site, the
+// target's configured site, then "default" -- deliberately not p.Site. A
+// profile is portable: it can be applied to a site other than the one it was
+// captured from, and a hand-trimmed profile with no "site" field must not
+// silently address site "". The mismatch is reported, not refused.
+//
 // Devices, firewall, and routing are never written, even if such a field
 // somehow appears in a hand-edited profile file (I-PROFILE-001) -- Profile's
 // struct has no field for them, so there is nothing for Apply to read.
-func Apply(ctx context.Context, client gofi.Client, p *Profile, dryRun bool, dnsDomainOverride string, progress io.Writer) error {
-	targetNetworks, err := network.ListNetworks(ctx, client, p.Site)
+func Apply(ctx context.Context, client gofi.Client, site string, p *Profile, dryRun bool, dnsDomainOverride string, progress io.Writer) error {
+	if site == "" {
+		return ErrNoSite
+	}
+	if p.Site != "" && p.Site != site {
+		fmt.Fprintf(progress, "note: profile was captured from site %q, applying to site %q\n", p.Site, site)
+	}
+
+	targetNetworks, err := network.ListNetworks(ctx, client, site)
 	if err != nil {
 		return err
 	}
@@ -111,7 +130,7 @@ func Apply(ctx context.Context, client gofi.Client, p *Profile, dryRun bool, dns
 	}
 
 	if len(p.FixedIPs) > 0 {
-		result, err := ips.DoSet(ctx, client, p.Site, p.FixedIPs, dnsDomainOverride, dryRun, false)
+		result, err := ips.DoSet(ctx, client, site, p.FixedIPs, dnsDomainOverride, dryRun, false)
 		if err != nil {
 			return err
 		}
@@ -123,7 +142,7 @@ func Apply(ctx context.Context, client gofi.Client, p *Profile, dryRun bool, dns
 			verb, result.Created, result.Updated, result.Skipped, result.Errors)
 	}
 
-	targetWLANs, err := client.WLANs().List(ctx, p.Site)
+	targetWLANs, err := client.WLANs().List(ctx, site)
 	if err != nil {
 		return err
 	}

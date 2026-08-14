@@ -1,6 +1,7 @@
 package conn
 
 import (
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -138,6 +139,14 @@ func TestResolveTargetConfig_secureFlagRejectedForConnector(t *testing.T) {
 	_, err := ResolveTargetConfig(io.Discard, target, "", 0, "", &secure, nil)
 	if err == nil {
 		t.Fatal("ResolveTargetConfig() error = nil, want a usage error for --secure against a connector target")
+	}
+	// The sentinel is what lets the CLI layer map this to exit 2
+	// (C-GLOBAL-007); a bare error would exit 1.
+	if !errors.Is(err, ErrSecureFlagNotApplicable) {
+		t.Errorf("ResolveTargetConfig() error = %v, want it to wrap ErrSecureFlagNotApplicable", err)
+	}
+	if strings.Contains(err.Error(), "--insecure") {
+		t.Errorf("error names --insecure, a flag gofi does not have: %v", err)
 	}
 }
 

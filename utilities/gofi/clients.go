@@ -17,6 +17,12 @@ see "gofi users" for the known-client registry).
 
 Manufacturer lookup always comes from gofi's own cached IEEE OUI database,
 never the controller's own (frequently stale) OUI field.`,
+
+		// Runnable + Args so an unknown subcommand under this area is a
+		// usage error (exit 2) rather than cobra's silent help-with-exit-0
+		// for a non-runnable parent (C-GLOBAL-012).
+		Args: wrapArgsError(unknownSubcommandArgs),
+		RunE: showHelp,
 	}
 	cmd.AddCommand(newClientsListCommand())
 	cmd.AddCommand(newClientsVendorCommand())
@@ -28,7 +34,7 @@ func newClientsListCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List connected stations",
-		Args:  cobra.NoArgs,
+		Args:  wrapArgsError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if wifi && wired {
 				return fmt.Errorf("%w: --wifi and --wired are mutually exclusive", errUsage)
@@ -76,7 +82,7 @@ func newClientsVendorCommand() *cobra.Command {
 
 Entirely offline (C-CLIENTS-004): reads the cached IEEE OUI registry and
 never opens a controller session.`,
-		Args: cobra.ExactArgs(1),
+		Args: wrapArgsError(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			db, err := clients.LoadOUIDatabase()
 			if err != nil {

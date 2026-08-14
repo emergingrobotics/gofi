@@ -18,6 +18,12 @@ func newDNSCommand() *cobra.Command {
 Exists for the case where only the DNS side of a binding should move --
 correcting a stale record without touching a reservation something else
 still depends on. See VISION.md's Area boundaries for the ips/dns split.`,
+
+		// Runnable + Args so an unknown subcommand under this area is a
+		// usage error (exit 2) rather than cobra's silent help-with-exit-0
+		// for a non-runnable parent (C-GLOBAL-012).
+		Args: wrapArgsError(unknownSubcommandArgs),
+		RunE: showHelp,
 	}
 	cmd.AddCommand(newDNSListCommand(), newDNSRmCommand())
 	return cmd
@@ -27,7 +33,7 @@ func newDNSListCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List DNS records",
-		Args:  cobra.NoArgs,
+		Args:  wrapArgsError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := connect()
 			if err != nil {
@@ -48,7 +54,7 @@ func newDNSRmCommand() *cobra.Command {
 		Use:     "rm",
 		Aliases: []string{"remove"},
 		Short:   "Remove one record, by --id/--name/--ip",
-		Args:    cobra.NoArgs,
+		Args:    wrapArgsError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			count := 0
 			for _, v := range []string{id, name, ip} {

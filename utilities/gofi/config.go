@@ -21,6 +21,12 @@ Acts on your machine, never on a controller. Holds named targets and an
 output preference. Secrets never appear here (C-CONFIG's invariant): a
 password or API key comes from the environment, a command the file names,
 or an interactive prompt.`,
+
+		// Runnable + Args so an unknown subcommand under this area is a
+		// usage error (exit 2) rather than cobra's silent help-with-exit-0
+		// for a non-runnable parent (C-GLOBAL-012).
+		Args: wrapArgsError(unknownSubcommandArgs),
+		RunE: showHelp,
 	}
 	cmd.AddCommand(newConfigShowCommand(), newConfigTargetsCommand(), newConfigInitCommand())
 	return cmd
@@ -30,7 +36,7 @@ func newConfigShowCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "show",
 		Short: "Report the config file's location and what it resolves to",
-		Args:  cobra.NoArgs,
+		Args:  wrapArgsError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			exists := "yes"
 			if _, err := os.Stat(opts.file.Path()); err != nil {
@@ -65,7 +71,7 @@ func newConfigTargetsCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "targets",
 		Short: "List the configured targets",
-		Args:  cobra.NoArgs,
+		Args:  wrapArgsError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			names := opts.file.Names()
 			if asJSON() {
@@ -97,7 +103,7 @@ func newConfigInitCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Write a starting configuration file",
-		Args:  cobra.NoArgs,
+		Args:  wrapArgsError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			path := config.Path()
 			if _, err := os.Stat(path); err == nil && !force {

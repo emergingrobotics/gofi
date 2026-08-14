@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -19,6 +20,12 @@ apply one back.
 
 Deliberately narrower than a full site dump: devices, firewall, routing, and
 port profiles are never captured, permanently (C-PROFILE-001).`,
+
+		// Runnable + Args so an unknown subcommand under this area is a
+		// usage error (exit 2) rather than cobra's silent help-with-exit-0
+		// for a non-runnable parent (C-GLOBAL-012).
+		Args: wrapArgsError(unknownSubcommandArgs),
+		RunE: showHelp,
 	}
 	cmd.AddCommand(newProfileExportCommand(), newProfileImportCommand())
 	return cmd
@@ -29,7 +36,7 @@ func newProfileExportCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "export",
 		Short: "Write a profile to stdout",
-		Args:  cobra.NoArgs,
+		Args:  wrapArgsError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := connect()
 			if err != nil {
@@ -59,7 +66,7 @@ func newProfileImportCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "import [file]",
 		Short: "Apply a profile from a file, or from stdin",
-		Args:  cobra.MaximumNArgs(1),
+		Args:  wrapArgsError(cobra.MaximumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			input := cmd.InOrStdin()
 			if len(args) == 1 && args[0] != "-" {
@@ -82,7 +89,14 @@ func newProfileImportCommand() *cobra.Command {
 			}
 			defer client.Disconnect(cmd.Context())
 
-			return explain(profile.Apply(cmd.Context(), client, p, dryRun, dnsDomain, cmd.ErrOrStderr()))
+			// siteFlag(), not the profile's own "site" field: a profile
+			// is applied to the site the invocation resolves, so
+			// -S/--site and the target's site both take effect.
+			err = profile.Apply(cmd.Context(), client, siteFlag(), p, dryRun, dnsDomain, cmd.ErrOrStderr())
+			if errors.Is(err, profile.ErrNoSite) {
+				return fmt.Errorf("%w: %s", errUsage, err)
+			}
+			return explain(err)
 		},
 	}
 	f := cmd.Flags()
