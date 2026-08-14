@@ -68,11 +68,9 @@ reproducible from a file rather than from click history in the UniFi app.`,
 	flags.StringVar(&opts.output, "output", outputText, "output format: text or json")
 	flags.Bool("secure", false, "enforce TLS certificate verification (local mode only)")
 
-	root.AddCommand(
-	// newConfigCommand() is added by Task 0.6.
+	root.AddCommand(newConfigCommand())
 	// newIPsCommand(), newDNSCommand(), newNetworkCommand(), newClientsCommand(),
 	// newUsersCommand(), newProfileCommand() are added by Phases 1-6.
-	)
 	return root
 }
 
