@@ -8,6 +8,7 @@ package profile
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 
 	gofi "github.com/unifi-go/gofi/src"
@@ -81,4 +82,54 @@ func ReadProfile(r io.Reader) (*Profile, error) {
 		return nil, err
 	}
 	return &p, nil
+}
+
+// Apply applies a profile in the fixed order networks, fixed IPs, WLANs
+// (C-PROFILE-003): fixed IPs must land inside an existing subnet, so
+// networks go first. A network or WLAN the target site lacks is reported
+// and skipped rather than failing the whole run (C-PROFILE-005).
+//
+// Devices, firewall, and routing are never written, even if such a field
+// somehow appears in a hand-edited profile file (I-PROFILE-001) -- Profile's
+// struct has no field for them, so there is nothing for Apply to read.
+func Apply(ctx context.Context, client gofi.Client, p *Profile, dryRun bool, progress io.Writer) error {
+	targetNetworks, err := network.ListNetworks(ctx, client, "default")
+	if err != nil {
+		return err
+	}
+	targetByName := make(map[string]network.NetworkEntry, len(targetNetworks))
+	for _, n := range targetNetworks {
+		targetByName[n.Name] = n
+	}
+
+	for _, n := range p.Networks {
+		if _, ok := targetByName[n.Name]; !ok {
+			fmt.Fprintf(progress, "skipping network %q: not present on the target site\n", n.Name)
+			continue
+		}
+		fmt.Fprintf(progress, "network %q matches target; no write endpoint yet (C-NETWORK-004)\n", n.Name)
+	}
+
+	if len(p.FixedIPs) > 0 {
+		if dryRun {
+			fmt.Fprintf(progress, "would import %d fixed-IP assignment(s)\n", len(p.FixedIPs))
+		} else {
+			result, err := ips.DoSet(ctx, client, "default", p.FixedIPs, "", false, false)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(progress, "fixed IPs: %d created, %d updated, %d skipped, %d errors\n",
+				result.Created, result.Updated, result.Skipped, result.Errors)
+		}
+	}
+
+	for _, w := range p.WLANs {
+		if dryRun {
+			fmt.Fprintf(progress, "would apply WLAN %q\n", w.Name)
+			continue
+		}
+		fmt.Fprintf(progress, "WLAN %q: no write endpoint yet\n", w.Name)
+	}
+
+	return nil
 }

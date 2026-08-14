@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 
 	"github.com/unifi-go/gofi/src/services"
 	"github.com/unifi-go/gofi/src/types"
+	"github.com/unifi-go/gofi/utilities/internal/ips"
+	"github.com/unifi-go/gofi/utilities/internal/network"
 )
 
 func TestCapture_omitsPassphrasesByDefault(t *testing.T) {
@@ -60,6 +63,88 @@ func TestProfileWriteAndReadRoundTrip(t *testing.T) {
 	}
 }
 
+func TestApply_skipsNetworksAbsentFromTarget(t *testing.T) {
+	client := newMockClientWithNetworks(t, nil) // target site has no networks
+	p := &Profile{
+		Networks: []network.NetworkEntry{{Name: "Guest"}},
+	}
+	var progress bytes.Buffer
+	if err := Apply(context.Background(), client, p, false, &progress); err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	if !strings.Contains(progress.String(), "Guest") {
+		t.Error("expected Apply to report the skipped network by name")
+	}
+}
+
+func TestApply_dryRunMakesNoWrites(t *testing.T) {
+	client := newMockClientRecordingWrites(t)
+	p := &Profile{FixedIPs: []ips.HostEntry{{Hostname: "nas", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.13"}}}
+
+	if err := Apply(context.Background(), client, p, true, io.Discard); err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+	if client.WriteCount() != 0 {
+		t.Errorf("WriteCount() = %d after dry-run, want 0", client.WriteCount())
+	}
+}
+
+func TestApply_appliesNetworksBeforeFixedIPsBeforeWLANs(t *testing.T) {
+	client := newMockClientWithNetworks(t, []types.Network{{Name: "Default", IPSubnet: "192.168.1.0/24", DomainName: "lan.example.com"}})
+	p := &Profile{
+		Networks: []network.NetworkEntry{{Name: "Default"}},
+		FixedIPs: []ips.HostEntry{{Hostname: "nas", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.13"}},
+		WLANs:    []WLANEntry{{Name: "guest-wifi", Enabled: true}},
+	}
+	var progress bytes.Buffer
+	if err := Apply(context.Background(), client, p, false, &progress); err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+
+	out := progress.String()
+	networkIdx := strings.Index(out, "Default")
+	fixedIPIdx := strings.Index(out, "fixed IPs")
+	wlanIdx := strings.Index(out, "guest-wifi")
+	if networkIdx == -1 || fixedIPIdx == -1 || wlanIdx == -1 {
+		t.Fatalf("expected progress to report all three sections, got: %s", out)
+	}
+	if !(networkIdx < fixedIPIdx && fixedIPIdx < wlanIdx) {
+		t.Errorf("expected order networks < fixed IPs < WLANs in progress output, got: %s", out)
+	}
+}
+
+// newMockClientWithNetworks builds a test client whose target-site network
+// list is exactly the given networks (nil means the site has none).
+func newMockClientWithNetworks(t *testing.T, networks []types.Network) *mockClient {
+	t.Helper()
+	return &mockClient{
+		networks: mockNetworkService{networks: networks},
+	}
+}
+
+// recordingMockClient wraps mockClient and counts every write (Create,
+// Update, Delete) issued through the user, network, or WLAN services, so
+// tests can assert a dry run makes zero real writes.
+type recordingMockClient struct {
+	*mockClient
+	writes *int
+}
+
+func (r *recordingMockClient) WriteCount() int { return *r.writes }
+
+// newMockClientRecordingWrites builds a test client identical to an empty
+// mockClient, but with write-tracking wired into the user, network, and
+// WLAN services.
+func newMockClientRecordingWrites(t *testing.T) *recordingMockClient {
+	t.Helper()
+	writes := new(int)
+	client := &mockClient{}
+	client.users.writes = writes
+	client.networks.writes = writes
+	client.wlans.writes = writes
+	return &recordingMockClient{mockClient: client, writes: writes}
+}
+
 // newMockClientWithWLAN builds a test client whose WLAN list has a single
 // entry with the given name and passphrase, on an otherwise empty site
 // (no networks, users, or DNS records).
@@ -102,7 +187,14 @@ func (m *mockClient) DNS() services.DNSService                  { return &m.dns 
 
 // mockUserService implements services.UserService.
 type mockUserService struct {
-	users []types.User
+	users  []types.User
+	writes *int // optional write counter, set by newMockClientRecordingWrites
+}
+
+func (m *mockUserService) countWrite() {
+	if m.writes != nil {
+		*m.writes++
+	}
 }
 
 func (m *mockUserService) List(ctx context.Context, site string) ([]types.User, error) {
@@ -123,26 +215,32 @@ func (m *mockUserService) GetByMAC(ctx context.Context, site, mac string) (*type
 }
 
 func (m *mockUserService) Create(ctx context.Context, site string, user *types.User) (*types.User, error) {
+	m.countWrite()
 	return user, nil
 }
 
 func (m *mockUserService) Update(ctx context.Context, site string, user *types.User) (*types.User, error) {
+	m.countWrite()
 	return user, nil
 }
 
 func (m *mockUserService) Delete(ctx context.Context, site, id string) error {
+	m.countWrite()
 	return nil
 }
 
 func (m *mockUserService) DeleteByMAC(ctx context.Context, site, mac string) error {
+	m.countWrite()
 	return nil
 }
 
 func (m *mockUserService) SetFixedIP(ctx context.Context, site, mac, ip, networkID string) error {
+	m.countWrite()
 	return nil
 }
 
 func (m *mockUserService) ClearFixedIP(ctx context.Context, site, mac string) error {
+	m.countWrite()
 	return nil
 }
 
@@ -206,6 +304,13 @@ func (m *mockDNSService) DeleteByName(ctx context.Context, site, name string) er
 // mockNetworkService implements services.NetworkService.
 type mockNetworkService struct {
 	networks []types.Network
+	writes   *int // optional write counter, set by newMockClientRecordingWrites
+}
+
+func (m *mockNetworkService) countWrite() {
+	if m.writes != nil {
+		*m.writes++
+	}
 }
 
 func (m *mockNetworkService) List(ctx context.Context, site string) ([]types.Network, error) {
@@ -217,20 +322,30 @@ func (m *mockNetworkService) Get(ctx context.Context, site, id string) (*types.N
 }
 
 func (m *mockNetworkService) Create(ctx context.Context, site string, network *types.Network) (*types.Network, error) {
+	m.countWrite()
 	return network, nil
 }
 
 func (m *mockNetworkService) Update(ctx context.Context, site string, network *types.Network) (*types.Network, error) {
+	m.countWrite()
 	return network, nil
 }
 
 func (m *mockNetworkService) Delete(ctx context.Context, site, id string) error {
+	m.countWrite()
 	return nil
 }
 
 // mockWLANService implements services.WLANService.
 type mockWLANService struct {
-	wlans []types.WLAN
+	wlans  []types.WLAN
+	writes *int // optional write counter, set by newMockClientRecordingWrites
+}
+
+func (m *mockWLANService) countWrite() {
+	if m.writes != nil {
+		*m.writes++
+	}
 }
 
 func (m *mockWLANService) List(ctx context.Context, site string) ([]types.WLAN, error) {
@@ -242,22 +357,27 @@ func (m *mockWLANService) Get(ctx context.Context, site, id string) (*types.WLAN
 }
 
 func (m *mockWLANService) Create(ctx context.Context, site string, wlan *types.WLAN) (*types.WLAN, error) {
+	m.countWrite()
 	return wlan, nil
 }
 
 func (m *mockWLANService) Update(ctx context.Context, site string, wlan *types.WLAN) (*types.WLAN, error) {
+	m.countWrite()
 	return wlan, nil
 }
 
 func (m *mockWLANService) Delete(ctx context.Context, site, id string) error {
+	m.countWrite()
 	return nil
 }
 
 func (m *mockWLANService) Enable(ctx context.Context, site, id string) error {
+	m.countWrite()
 	return nil
 }
 
 func (m *mockWLANService) Disable(ctx context.Context, site, id string) error {
+	m.countWrite()
 	return nil
 }
 
