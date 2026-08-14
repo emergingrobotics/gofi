@@ -8,6 +8,7 @@ import (
 
 	"github.com/unifi-go/gofi/src"
 	"github.com/unifi-go/gofi/utilities/internal/conn"
+	"github.com/unifi-go/gofi/utilities/internal/network"
 )
 
 func main() {
@@ -74,17 +75,17 @@ func main() {
 	}()
 
 	fmt.Fprintf(os.Stderr, "Fetching networks...\n")
-	entries, err := ListNetworks(ctx, apiClient, *site)
+	entries, err := network.ListNetworks(ctx, apiClient, *site)
 	if err != nil {
 		exitError("failed to list networks: " + err.Error())
 	}
 
 	if *jsonOut {
-		if err := FormatJSON(os.Stdout, entries); err != nil {
+		if err := network.FormatJSON(os.Stdout, entries); err != nil {
 			exitError("failed to write JSON output: " + err.Error())
 		}
 	} else {
-		if err := FormatText(os.Stdout, entries); err != nil {
+		if err := network.FormatText(os.Stdout, entries); err != nil {
 			exitError("failed to write output: " + err.Error())
 		}
 	}
