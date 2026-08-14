@@ -92,7 +92,7 @@ func ReadProfile(r io.Reader) (*Profile, error) {
 // Devices, firewall, and routing are never written, even if such a field
 // somehow appears in a hand-edited profile file (I-PROFILE-001) -- Profile's
 // struct has no field for them, so there is nothing for Apply to read.
-func Apply(ctx context.Context, client gofi.Client, p *Profile, dryRun bool, progress io.Writer) error {
+func Apply(ctx context.Context, client gofi.Client, p *Profile, dryRun bool, dnsDomainOverride string, progress io.Writer) error {
 	targetNetworks, err := network.ListNetworks(ctx, client, p.Site)
 	if err != nil {
 		return err
@@ -111,7 +111,7 @@ func Apply(ctx context.Context, client gofi.Client, p *Profile, dryRun bool, pro
 	}
 
 	if len(p.FixedIPs) > 0 {
-		result, err := ips.DoSet(ctx, client, p.Site, p.FixedIPs, "", dryRun, false)
+		result, err := ips.DoSet(ctx, client, p.Site, p.FixedIPs, dnsDomainOverride, dryRun, false)
 		if err != nil {
 			return err
 		}

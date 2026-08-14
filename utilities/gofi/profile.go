@@ -55,6 +55,7 @@ func newProfileExportCommand() *cobra.Command {
 
 func newProfileImportCommand() *cobra.Command {
 	var dryRun bool
+	var dnsDomain string
 	cmd := &cobra.Command{
 		Use:   "import [file]",
 		Short: "Apply a profile from a file, or from stdin",
@@ -81,9 +82,11 @@ func newProfileImportCommand() *cobra.Command {
 			}
 			defer client.Disconnect(cmd.Context())
 
-			return explain(profile.Apply(cmd.Context(), client, p, dryRun, cmd.ErrOrStderr()))
+			return explain(profile.Apply(cmd.Context(), client, p, dryRun, dnsDomain, cmd.ErrOrStderr()))
 		},
 	}
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would change without changing it")
+	f := cmd.Flags()
+	f.BoolVar(&dryRun, "dry-run", false, "show what would change without changing it")
+	f.StringVar(&dnsDomain, "dns-domain", os.Getenv("UNIFI_DNS_DOMAIN"), "DNS suffix for fixed-IP hostnames, overriding the profile's own network domain")
 	return cmd
 }

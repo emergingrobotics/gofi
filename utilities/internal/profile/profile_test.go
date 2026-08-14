@@ -69,7 +69,7 @@ func TestApply_skipsNetworksAbsentFromTarget(t *testing.T) {
 		Networks: []network.NetworkEntry{{Name: "Guest"}},
 	}
 	var progress bytes.Buffer
-	if err := Apply(context.Background(), client, p, false, &progress); err != nil {
+	if err := Apply(context.Background(), client, p, false, "", &progress); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
 	if !strings.Contains(progress.String(), "Guest") {
@@ -85,7 +85,7 @@ func TestApply_dryRunMakesNoWrites(t *testing.T) {
 	client.networks.networks = []types.Network{{Name: "Default", IPSubnet: "192.168.1.0/24", DomainName: "lan.example.com"}}
 	p := &Profile{FixedIPs: []ips.HostEntry{{Hostname: "nas", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.13"}}}
 
-	if err := Apply(context.Background(), client, p, true, io.Discard); err != nil {
+	if err := Apply(context.Background(), client, p, true, "", io.Discard); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
 	if client.WriteCount() != 0 {
@@ -103,7 +103,7 @@ func TestApply_dryRunReportsRealDoSetCounts(t *testing.T) {
 		FixedIPs: []ips.HostEntry{{Hostname: "nas", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.13"}},
 	}
 	var progress bytes.Buffer
-	if err := Apply(context.Background(), client, p, true, &progress); err != nil {
+	if err := Apply(context.Background(), client, p, true, "", &progress); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
 	// The entry is already unchanged on the target, so a real DoSet dry run
@@ -119,7 +119,7 @@ func TestApply_skipsWLANsAbsentFromTarget(t *testing.T) {
 		WLANs: []WLANEntry{{Name: "guest-wifi", Enabled: true}},
 	}
 	var progress bytes.Buffer
-	if err := Apply(context.Background(), client, p, false, &progress); err != nil {
+	if err := Apply(context.Background(), client, p, false, "", &progress); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
 	if !strings.Contains(progress.String(), "skipping WLAN \"guest-wifi\"") {
@@ -136,7 +136,7 @@ func TestApply_appliesNetworksBeforeFixedIPsBeforeWLANs(t *testing.T) {
 		WLANs:    []WLANEntry{{Name: "guest-wifi", Enabled: true}},
 	}
 	var progress bytes.Buffer
-	if err := Apply(context.Background(), client, p, false, &progress); err != nil {
+	if err := Apply(context.Background(), client, p, false, "", &progress); err != nil {
 		t.Fatalf("Apply() error = %v", err)
 	}
 
@@ -149,6 +149,28 @@ func TestApply_appliesNetworksBeforeFixedIPsBeforeWLANs(t *testing.T) {
 	}
 	if !(networkIdx < fixedIPIdx && fixedIPIdx < wlanIdx) {
 		t.Errorf("expected order networks < fixed IPs < WLANs in progress output, got: %s", out)
+	}
+}
+
+func TestApply_dnsDomainOverrideReachesDoSet(t *testing.T) {
+	client := newMockClientWithNetworks(t, []types.Network{{Name: "Default", IPSubnet: "192.168.1.0/24"}}) // target network has NO domain configured
+	p := &Profile{
+		Site:     "default",
+		FixedIPs: []ips.HostEntry{{Hostname: "nas", MAC: "aa:bb:cc:dd:ee:01", IP: "192.168.1.13"}},
+	}
+	var progress bytes.Buffer
+
+	// Without an override, this should fail (no network domain, no override given).
+	err := Apply(context.Background(), client, p, false, "", &progress)
+	if err == nil {
+		t.Fatal("Apply() with no dnsDomainOverride and no network domain: error = nil, want a domain-resolution error")
+	}
+
+	// With an override, it should succeed.
+	progress.Reset()
+	err = Apply(context.Background(), client, p, false, "bench.test", &progress)
+	if err != nil {
+		t.Fatalf("Apply() with dnsDomainOverride = %v, want nil", err)
 	}
 }
 

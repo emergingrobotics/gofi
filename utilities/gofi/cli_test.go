@@ -163,6 +163,30 @@ func TestProfileImport_readsFromStdinWithNoArgs(t *testing.T) {
 	}
 }
 
+// TestProfileImport_dnsDomainFlagIsAccepted mirrors
+// TestProfileImport_readsFromStdinWithNoArgs: credentials are cleared so
+// connect() fails deterministically before any network I/O, which is enough
+// to prove --dns-domain parses as a flag (a usage error would surface first
+// otherwise) and reaches the point of connecting, without depending on
+// whatever real credentials this sandbox happens to carry.
+func TestProfileImport_dnsDomainFlagIsAccepted(t *testing.T) {
+	for _, k := range []string{"UNIFI_API_KEY", "UNIFI_CONSOLE_ID", "UNIFI_USERNAME", "UNIFI_PASSWORD", "UNIFI_CONTROLLER_IP"} {
+		t.Setenv(k, "")
+	}
+	t.Setenv("GOFI_CONFIG", filepath.Join(t.TempDir(), "config.toml"))
+
+	cmd := newProfileCommand()
+	cmd.SetIn(strings.NewReader(`{"site":"default"}`))
+	cmd.SetArgs([]string{"import", "--dry-run", "--dns-domain", "bench.test"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("profile import --dns-domain: error = nil, want a connection error (no credentials in test env)")
+	}
+	if errors.Is(err, errUsage) {
+		t.Errorf("profile import --dns-domain: error = %v, want a connection failure, not a usage error (flag should be accepted)", err)
+	}
+}
+
 func TestNetworkShow_requiresOneArg(t *testing.T) {
 	cmd := newNetworkCommand()
 	cmd.SetArgs([]string{"show"})
