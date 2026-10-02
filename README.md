@@ -53,16 +53,6 @@ export UNIFI_CONSOLE_ID=...
 That's it — every request now goes to `https://api.ui.com`, which forwards it to your
 console. No direct network route to the UDM is required.
 
-### Alternative — local username/password
-
-The cloud API key above is the intended path — it's what most of gofi's own testing and
-day-to-day use goes through. If the controller isn't reachable at `api.ui.com` at all
-(an isolated network, no internet route) or you'd rather not create a cloud key, a local
-username/password path exists as a secondary, **less-tested** alternative. See
-[`docs/alternate-local-api.md`](docs/alternate-local-api.md) for the full setup,
-including TLS/self-signed-certificate handling. If you're not sure which to use, use
-the cloud API key above.
-
 ## Step 2 — Build and install the programs
 
 ```bash
