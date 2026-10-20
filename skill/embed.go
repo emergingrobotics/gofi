@@ -29,3 +29,9 @@ func FS() fs.FS {
 	}
 	return sub
 }
+
+// MD returns SKILL.md's exact embedded bytes -- frontmatter and body, nothing
+// added or stripped -- for `gofi print-skill` to write verbatim (C-SKILL-008).
+func MD() ([]byte, error) {
+	return fs.ReadFile(embedded, Name+"/SKILL.md")
+}

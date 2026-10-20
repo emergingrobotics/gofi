@@ -382,15 +382,16 @@ the controller.
 
 ## SKILL — Self-Installed Agent Skill
 
-New; no predecessor tool. `gofi` carries the agent skill that teaches its use and
-installs it with `gofi install-skill`, per the Skill Self-Installation
-Specification v0.3 (the `sm` project's `SKILL-INSTALL-SPEC.md`) and the Skills
-Directory Specification it builds on. Acts on the local machine, never the
-controller.
+New; no predecessor tool. `gofi` carries the agent skill that teaches its use,
+installs it with `gofi install-skill`, and prints it with `gofi print-skill`, per
+the Skill Self-Installation Specification v0.4 (the `sm` project's
+`SKILL-INSTALL-SPEC.md`) and the Skills Directory Specification it builds on. Acts
+on the local machine, never the controller.
 
-`install-skill` is the one top-level verb outside the `<area> <action>` grammar
-(C-GLOBAL-001): its spelling is fixed by that specification so any conforming tool
-can be asked to install its skill without being told how.
+`install-skill` and `print-skill` are the two top-level verbs outside the
+`<area> <action>` grammar (C-GLOBAL-001): their spelling is fixed by that
+specification so any conforming tool can be asked to install or print its skill
+without being told how.
 
 ### Constraints
 
@@ -445,6 +446,30 @@ can be asked to install its skill without being told how.
   modifies nothing. [Shipped]
 - **B-SKILL-004** — Given a malformed `config.toml` and no credentials, when
   `gofi install-skill` runs, then it succeeds. [Shipped]
+
+### `print-skill`
+
+- **C-SKILL-008** [Shipped] — `gofi print-skill` writes the embedded skill's
+  `SKILL.md` — frontmatter and body, exact bytes — to stdout and nothing else: no
+  banner, path, heading, or trailing text. It reads only the embedded copy, never
+  the store or an installed copy, so its output is identical whether or not the
+  skill is installed, and it loads no config, resolves no target, and opens no
+  connection (same bypass as C-SKILL-004).
+- **C-SKILL-009** [Shipped] — `print-skill` makes no filesystem change: it
+  creates, modifies, and removes nothing, in the store or anywhere else.
+- **C-SKILL-010** [Shipped] — `print-skill` has no conflict or refusal case; its
+  only failure is the embedded skill being unreadable, which for a correctly
+  built binary is unreachable. On success it exits 0; on that failure it writes a
+  message to stderr, exits 1, and writes no partial `SKILL.md` to stdout.
+
+### Behavior (`print-skill`)
+
+- **B-SKILL-005** — Given any state of the store or the filesystem, when
+  `gofi print-skill` runs, then stdout is byte-for-byte the embedded skill's
+  `SKILL.md` and exit is 0. [Shipped]
+- **B-SKILL-006** — Given a malformed `config.toml` and no credentials, when
+  `gofi print-skill` runs, then it succeeds and the store is untouched (created or
+  otherwise). [Shipped]
 
 ## Traceability
 

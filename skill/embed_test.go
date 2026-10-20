@@ -68,6 +68,22 @@ func TestEmbeddedSkill_isSelfContained(t *testing.T) {
 	}
 }
 
+// C-SKILL-008: MD returns exactly what's embedded at SKILL.md, nothing added
+// or stripped.
+func TestMD_matchesEmbeddedFile(t *testing.T) {
+	viaFS, err := fs.ReadFile(FS(), "SKILL.md")
+	if err != nil {
+		t.Fatalf("reading via FS(): %v", err)
+	}
+	viaMD, err := MD()
+	if err != nil {
+		t.Fatalf("MD(): %v", err)
+	}
+	if string(viaFS) != string(viaMD) {
+		t.Error("MD() does not match the embedded SKILL.md byte-for-byte")
+	}
+}
+
 // C-SKILL-001: the skill directory carries nothing but the skill -- in
 // particular not a Go source file.
 func TestEmbeddedSkill_carriesNoGoSource(t *testing.T) {

@@ -21,7 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fixed IPs as one JSON file.
 - `gofi install-skill` — installs the agent skill embedded in the binary
   (`skill/gofi-cli/`) into `$XDG_DATA_HOME/skills/`, per the Skill Self-Installation
-  Specification v0.3. `-f`/`--force` replaces a differing copy; exit 3 when it refuses.
+  Specification v0.4. `-f`/`--force` replaces a differing copy; exit 3 when it refuses.
+- `gofi print-skill` — writes the same embedded skill's `SKILL.md` to stdout, byte for
+  byte, with no filesystem change.
 
 ### Fixed
 - `gofi ips rm --force` and `gofi ips clear` no longer delete user records. Both

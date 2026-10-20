@@ -94,6 +94,7 @@ reproducible from a file rather than from click history in the UniFi app.`,
 		newUsersCommand(),
 		newProfileCommand(),
 		newInstallSkillCommand(),
+		newPrintSkillCommand(),
 	)
 	return root
 }

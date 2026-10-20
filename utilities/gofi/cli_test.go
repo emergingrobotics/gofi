@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/unifi-go/gofi/skill"
 	"github.com/unifi-go/gofi/utilities/internal/ips"
 )
 
@@ -391,5 +392,76 @@ func TestInstallSkill_exitCodes(t *testing.T) {
 	}
 	if out, err := run("-f"); err != nil || !strings.Contains(out, "replaced skill") {
 		t.Fatalf("-f: out=%q err=%v, want replaced", out, err)
+	}
+}
+
+// B-SKILL-005, C-SKILL-008: print-skill writes exactly the embedded SKILL.md
+// to stdout, nothing more, nothing less.
+func TestPrintSkill_writesExactEmbeddedBytes(t *testing.T) {
+	want, err := skill.MD()
+	if err != nil {
+		t.Fatalf("skill.MD(): %v", err)
+	}
+
+	var out bytes.Buffer
+	root := newRootCommand()
+	root.SetOut(&out)
+	root.SetArgs([]string{"print-skill"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("print-skill: %v", err)
+	}
+	if out.String() != string(want) {
+		t.Errorf("print-skill stdout does not match the embedded SKILL.md byte-for-byte")
+	}
+}
+
+// C-SKILL-009: print-skill never touches the store, even where install-skill
+// would create it.
+func TestPrintSkill_touchesNoFilesystem(t *testing.T) {
+	dir := t.TempDir()
+	dataHome := filepath.Join(dir, "data")
+	t.Setenv("XDG_DATA_HOME", dataHome)
+	t.Setenv("GOFI_CONFIG", filepath.Join(dir, "none.toml"))
+
+	var out bytes.Buffer
+	root := newRootCommand()
+	root.SetOut(&out)
+	root.SetArgs([]string{"print-skill"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("print-skill: %v", err)
+	}
+	if _, err := os.Stat(dataHome); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("print-skill created %s; it must never touch the store", dataHome)
+	}
+}
+
+// B-SKILL-006, C-SKILL-008: print-skill runs from the root command without
+// loading config.toml, so a malformed config doesn't block it.
+func TestPrintSkill_ignoresBrokenConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfg := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(cfg, []byte("default = \n[targets\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GOFI_CONFIG", cfg)
+
+	var out bytes.Buffer
+	root := newRootCommand()
+	root.SetOut(&out)
+	root.SetArgs([]string{"print-skill"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("print-skill with a broken config: %v", err)
+	}
+	if !strings.HasPrefix(out.String(), "---\n") {
+		t.Errorf("stdout = %q, want it to start with the SKILL.md frontmatter", out.String()[:min(40, len(out.String()))])
+	}
+}
+
+// print-skill takes no arguments.
+func TestPrintSkill_rejectsArgs(t *testing.T) {
+	cmd := newPrintSkillCommand()
+	cmd.SetArgs([]string{"extra"})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("print-skill with an argument: error = nil, want a usage error")
 	}
 }

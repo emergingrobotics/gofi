@@ -137,7 +137,8 @@ this repository rather than of the command tree:
   (`utilities/internal/clients/oui.go`). Manufacturer lookups always come from this
   cache, never from the controller's own (frequently stale) `oui` field.
 - `gofi install-skill` installs the embedded skill (`skill/gofi-cli/`) into
-  `$XDG_DATA_HOME/skills/` (SKILL area of REQUIREMENTS.md). The skill must stay
+  `$XDG_DATA_HOME/skills/`; `gofi print-skill` writes the same `SKILL.md` to stdout with
+  no filesystem change (SKILL area of REQUIREMENTS.md). The skill must stay
   self-contained, with no references to repository files, because it ships inside a lone
   binary; `skill/embed_test.go` enforces this. Update it whenever CLI behavior changes.
 - Secrets never appear in `config.toml` or on any flag: they come from the

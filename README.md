@@ -70,7 +70,8 @@ installs it into the shared skills store, `~/.local/share/skills/gofi-cli/` (or
 `$XDG_DATA_HOME/skills/`):
 
 ```bash
-gofi install-skill            # -f/--force replaces a copy you've edited
+gofi install-skill   # -f/--force replaces a copy you've edited
+gofi print-skill      # or print it to stdout instead, with nothing left on disk
 ```
 
 It needs no config or credentials. Agents that read only their own skills directory

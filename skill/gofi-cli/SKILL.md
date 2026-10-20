@@ -417,19 +417,26 @@ These real UDM behaviors explain why some commands exist and others don't:
 - No network/VLAN or WLAN write has been verified against hardware, hence no
   `network set`, and `profile import` writes only fixed IPs.
 
-## 8. Installing this skill
+## 8. Getting this skill: install it, or just print it
 
-`gofi install-skill` writes this skill, embedded in the binary, to
-`$XDG_DATA_HOME/skills/gofi-cli/` (default `~/.local/share/skills/gofi-cli/`).
-It needs no config, credentials, or controller, and never prompts.
+Two ways to obtain this skill from the binary, neither needing config,
+credentials, or a controller:
 
-| Exit | Meaning |
-|---|---|
-| `0` | Installed, replaced, or already identical (prints `nothing changed`) |
-| `3` | A different copy is installed; left alone. Re-run with `-f`/`--force` to replace it |
-| `1` | The store isn't writable, or neither `XDG_DATA_HOME` nor `HOME` is usable |
+**`gofi print-skill`** writes this file -- frontmatter and body, exact bytes,
+nothing else -- to stdout. Nothing is written to disk. Use this for a one-off
+read into context, or to pipe the content somewhere yourself.
 
-Before using `--force`, check whether the installed copy was edited by hand on
-purpose. Agents that read only their own skills directory (such as
-`~/.claude/skills`) see the skill once a mirror step copies or links the store
-into it, for example `sm sync`.
+**`gofi install-skill`** writes it to
+`$XDG_DATA_HOME/skills/gofi-cli/` (default `~/.local/share/skills/gofi-cli/`),
+for agents that read a skills store from disk. Never prompts.
+
+| Exit | `install-skill` | `print-skill` |
+|---|---|---|
+| `0` | Installed, replaced, or already identical (prints `nothing changed`) | `SKILL.md` written to stdout |
+| `3` | A different copy is installed; left alone. Re-run with `-f`/`--force` to replace it | (never) |
+| `1` | The store isn't writable, or neither `XDG_DATA_HOME` nor `HOME` is usable | the embedded skill couldn't be read (should not happen) |
+
+Before using `install-skill --force`, check whether the installed copy was
+edited by hand on purpose. Agents that read only their own skills directory
+(such as `~/.claude/skills`) see an installed skill once a mirror step copies
+or links the store into it, for example `sm sync`.
