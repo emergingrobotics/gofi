@@ -3,6 +3,7 @@ package ips
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -93,24 +94,15 @@ func (m *mockUserService) Update(ctx context.Context, site string, user *types.U
 	return nil, fmt.Errorf("not found")
 }
 
+// Delete and DeleteByMAC fail the way a UDM does: DELETE /rest/user/<id>
+// answers 404 and keeps the record (CLAUDE.md, Controller API Quirks). No ips
+// operation may depend on them.
 func (m *mockUserService) Delete(ctx context.Context, site, id string) error {
-	for i := range m.users {
-		if m.users[i].ID == id {
-			m.users = append(m.users[:i], m.users[i+1:]...)
-			return nil
-		}
-	}
-	return fmt.Errorf("not found")
+	return fmt.Errorf("delete user failed with status 404")
 }
 
 func (m *mockUserService) DeleteByMAC(ctx context.Context, site, mac string) error {
-	for i := range m.users {
-		if strings.EqualFold(m.users[i].MAC, mac) {
-			m.users = append(m.users[:i], m.users[i+1:]...)
-			return nil
-		}
-	}
-	return fmt.Errorf("not found")
+	return fmt.Errorf("delete user failed with status 404")
 }
 
 func (m *mockUserService) SetFixedIP(ctx context.Context, site, mac, ip, networkID string) error {
@@ -484,6 +476,25 @@ func TestDoAdd_ConflictIP(t *testing.T) {
 	if !strings.Contains(err.Error(), "already assigned") {
 		t.Errorf("error = %q, want mention of already assigned", err.Error())
 	}
+	if !errors.Is(err, ErrConflict) {
+		t.Errorf("error = %v, want ErrConflict so the CLI exits 3", err)
+	}
+}
+
+func TestDoAdd_ConflictMAC(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:ff", Name: "existing", UseFixedIP: true, FixedIP: "192.168.1.40"},
+	}
+	entry := &HostEntry{Hostname: "existing", MAC: "aa:bb:cc:dd:ee:ff", IP: "192.168.1.50"}
+
+	err := DoAdd(context.Background(), client, "default", entry, "", false)
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("error = %v, want ErrConflict", err)
+	}
+	if client.users.users[0].FixedIP != "192.168.1.40" {
+		t.Errorf("refused add changed the reservation to %s", client.users.users[0].FixedIP)
+	}
 }
 
 func TestDoAdd_ForceOverride(t *testing.T) {
@@ -590,15 +601,15 @@ func TestDoDel_DryRunMakesNoChanges(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	user, err := findUserByIdentifier(context.Background(), client, "default", id)
+	users, err := findUsersByIdentifier(context.Background(), client, "default", id)
 	if err != nil {
 		t.Fatalf("unexpected error looking up user after dry-run: %v", err)
 	}
-	if !user.UseFixedIP {
+	if !users[0].UseFixedIP {
 		t.Error("dry-run should not clear the fixed IP")
 	}
-	if user.FixedIP != "192.168.1.10" {
-		t.Errorf("fixed IP = %q, want unchanged 192.168.1.10", user.FixedIP)
+	if users[0].FixedIP != "192.168.1.10" {
+		t.Errorf("fixed IP = %q, want unchanged 192.168.1.10", users[0].FixedIP)
 	}
 	if len(client.dns.records) != 1 {
 		t.Errorf("DNS record count = %d, want 1 (dry-run should not delete it)", len(client.dns.records))
@@ -1151,6 +1162,11 @@ func TestDoClear_removesEveryFixedIPAssignment(t *testing.T) {
 	if len(remaining) != 0 {
 		t.Errorf("remaining = %d entries after clear, want 0", len(remaining))
 	}
+	// C-IPS-009: clear releases reservations; it never deletes the user
+	// records, which a UDM refuses with 404 anyway.
+	if len(client.users.users) != 2 {
+		t.Errorf("users = %d after clear, want 2 (records kept, reservations released)", len(client.users.users))
+	}
 }
 
 func TestDoClear_dryRunRemovesNothing(t *testing.T) {
@@ -1172,5 +1188,105 @@ func TestDoClear_dryRunRemovesNothing(t *testing.T) {
 	}
 	if len(remaining) != 1 {
 		t.Errorf("remaining = %d entries after dry-run clear, want 1 (nothing removed)", len(remaining))
+	}
+}
+
+func TestDoDel_ForceNeverDeletesUserRecord(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:ff", Name: "myhost", UseFixedIP: true, FixedIP: "192.168.1.10"},
+	}
+
+	id := DeleteIdentifier{MAC: "aa:bb:cc:dd:ee:ff"}
+	if err := DoDel(context.Background(), client, "default", id, "", true, false, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(client.users.users) != 1 {
+		t.Fatalf("users = %d, want the record kept (C-IPS-009)", len(client.users.users))
+	}
+	if client.users.users[0].UseFixedIP {
+		t.Error("fixed IP should be cleared")
+	}
+}
+
+func TestDoDel_AmbiguousIPRefusedWithoutForce(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:01", Name: "a", UseFixedIP: true, FixedIP: "192.168.1.10"},
+		{ID: "u2", MAC: "aa:bb:cc:dd:ee:02", Name: "b", UseFixedIP: true, FixedIP: "192.168.1.10"},
+	}
+
+	id := DeleteIdentifier{IP: "192.168.1.10"}
+	err := DoDel(context.Background(), client, "default", id, "", false, false, false)
+	if !errors.Is(err, ErrAmbiguous) {
+		t.Fatalf("error = %v, want ErrAmbiguous", err)
+	}
+	for _, user := range client.users.users {
+		if !user.UseFixedIP {
+			t.Errorf("refused rm released %s", user.MAC)
+		}
+	}
+}
+
+func TestDoDel_AmbiguousForceReleasesEveryMatch(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:01", Name: "a", UseFixedIP: true, FixedIP: "192.168.1.10"},
+		{ID: "u2", MAC: "aa:bb:cc:dd:ee:02", Name: "b", UseFixedIP: true, FixedIP: "192.168.1.10"},
+	}
+
+	id := DeleteIdentifier{IP: "192.168.1.10"}
+	if err := DoDel(context.Background(), client, "default", id, "", true, false, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(client.users.users) != 2 {
+		t.Fatalf("users = %d, want both records kept", len(client.users.users))
+	}
+	for _, user := range client.users.users {
+		if user.UseFixedIP {
+			t.Errorf("forced rm left %s reserved", user.MAC)
+		}
+	}
+}
+
+func TestDoDel_AmbiguousNameRefusedWithoutForce(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:01", Name: "dup", UseFixedIP: true, FixedIP: "192.168.1.10"},
+		{ID: "u2", MAC: "aa:bb:cc:dd:ee:02", Hostname: "dup", UseFixedIP: true, FixedIP: "192.168.1.11"},
+	}
+
+	id := DeleteIdentifier{Name: "dup"}
+	err := DoDel(context.Background(), client, "default", id, "", false, false, false)
+	if !errors.Is(err, ErrAmbiguous) {
+		t.Fatalf("error = %v, want ErrAmbiguous", err)
+	}
+}
+
+func TestDoDel_NamePrefersTheRecordHoldingAReservation(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:01", Name: "phone"},
+		{ID: "u2", MAC: "aa:bb:cc:dd:ee:02", Name: "phone", UseFixedIP: true, FixedIP: "192.168.1.10"},
+	}
+
+	id := DeleteIdentifier{Name: "phone"}
+	if err := DoDel(context.Background(), client, "default", id, "", false, false, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if client.users.users[1].UseFixedIP {
+		t.Error("the reserved phone should be released")
+	}
+}
+
+func TestDoDel_NoFixedIPIsAnErrorEvenOnDryRun(t *testing.T) {
+	client := newTestClient()
+	client.users.users = []types.User{
+		{ID: "u1", MAC: "aa:bb:cc:dd:ee:01", Name: "phone"},
+	}
+
+	id := DeleteIdentifier{MAC: "aa:bb:cc:dd:ee:01"}
+	if err := DoDel(context.Background(), client, "default", id, "", false, false, true); err == nil {
+		t.Fatal("dry-run: error = nil, want no-fixed-IP error")
 	}
 }

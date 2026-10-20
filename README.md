@@ -63,7 +63,21 @@ make examples       # build the example programs into ./bin/examples
 
 `make install` puts `gofi` on your `PATH` (override the destination with `make install INSTALL_DIR=/somewhere/else`).
 
-## Step 3 — Shell completion (optional)
+## Step 3 — Install the agent skill (optional)
+
+`gofi` carries a skill that teaches an AI coding agent to drive it safely. One command
+installs it into the shared skills store, `~/.local/share/skills/gofi-cli/` (or
+`$XDG_DATA_HOME/skills/`):
+
+```bash
+gofi install-skill            # -f/--force replaces a copy you've edited
+```
+
+It needs no config or credentials. Agents that read only their own skills directory
+(such as `~/.claude/skills`) pick it up once a mirror step like `sm sync` links the
+store into it.
+
+## Step 4 — Shell completion (optional)
 
 `gofi completion <shell>` doesn't configure anything by itself — it prints a completion
 script to stdout. What you do with that output determines whether completion is

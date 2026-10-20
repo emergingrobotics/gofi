@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -166,7 +167,7 @@ func newIPsAddCommand() *cobra.Command {
 			}
 			defer client.Disconnect(cmd.Context())
 
-			return explain(ips.DoAdd(cmd.Context(), client, siteFlag(), entry, dnsDomain, force))
+			return refuseGuards(ips.DoAdd(cmd.Context(), client, siteFlag(), entry, dnsDomain, force))
 		},
 	}
 	f := cmd.Flags()
@@ -204,7 +205,7 @@ func newIPsRmCommand() *cobra.Command {
 			defer client.Disconnect(cmd.Context())
 
 			identifier := ips.DeleteIdentifier{Name: name, MAC: mac, IP: ip}
-			return explain(ips.DoDel(cmd.Context(), client, siteFlag(), identifier, dnsDomain, force, keepDNS, dryRun))
+			return refuseGuards(ips.DoDel(cmd.Context(), client, siteFlag(), identifier, dnsDomain, force, keepDNS, dryRun))
 		},
 	}
 	f := cmd.Flags()
@@ -212,7 +213,7 @@ func newIPsRmCommand() *cobra.Command {
 	f.StringVar(&mac, "mac", "", "MAC address to remove")
 	f.StringVar(&ip, "ip", "", "IPv4 address to remove")
 	f.StringVar(&dnsDomain, "dns-domain", os.Getenv("UNIFI_DNS_DOMAIN"), "DNS suffix for record keys")
-	f.BoolVar(&force, "force", false, "proceed past an ambiguous match")
+	f.BoolVar(&force, "force", false, "remove every reservation an ambiguous --name/--ip matches")
 	f.BoolVar(&keepDNS, "keep-dns", false, "do not delete the associated DNS record")
 	f.BoolVar(&dryRun, "dry-run", false, "show what would change without changing it")
 	return cmd
@@ -294,4 +295,14 @@ func siteFlag() string {
 		return opts.resolvedTarget.Site
 	}
 	return "default"
+}
+
+// refuseGuards classifies an ips add/rm guard refusal -- a conflicting
+// binding (C-IPS-004) or an ambiguous identifier (C-IPS-006) -- as exit 3
+// rather than 1 (C-GLOBAL-012). Anything else passes through explain.
+func refuseGuards(err error) error {
+	if errors.Is(err, ips.ErrConflict) || errors.Is(err, ips.ErrAmbiguous) {
+		return fmt.Errorf("%w: %s", errRefused, err)
+	}
+	return explain(err)
 }

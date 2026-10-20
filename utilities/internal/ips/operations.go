@@ -2,6 +2,7 @@ package ips
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -10,6 +11,17 @@ import (
 
 	"github.com/unifi-go/gofi/src"
 	"github.com/unifi-go/gofi/src/types"
+)
+
+var (
+	// ErrConflict means DoAdd refused because the IP, MAC, or DNS name is
+	// already bound elsewhere (C-IPS-004). A guard, not a failure: the CLI
+	// reports it as exit 3, and --force waives it.
+	ErrConflict = errors.New("conflict")
+	// ErrAmbiguous means a DoDel identifier matched more than one
+	// reservation (C-IPS-006). A guard, not a failure: the CLI reports it as
+	// exit 3, and --force waives it.
+	ErrAmbiguous = errors.New("ambiguous match")
 )
 
 type SetResult struct {
@@ -95,9 +107,9 @@ func DoGet(ctx context.Context, client gofi.Client, site, dnsDomainOverride stri
 
 // DoClear removes every fixed-IP assignment on the site, per host, using the
 // same removal DoDel performs for one (C-IPS-007, C-IPS-009: the DNS record
-// goes too, unless a future --keep-dns is threaded through here). Returns
-// what was (or, if dryRun, would be) removed, so the caller can print it
-// before a confirmation prompt (C-IPS-008).
+// goes too, unless a future --keep-dns is threaded through here, and the user
+// record itself is kept). Returns what was (or, if dryRun, would be) removed,
+// so the caller can print it before a confirmation prompt (C-IPS-008).
 func DoClear(ctx context.Context, client gofi.Client, site string, dryRun bool) ([]HostEntry, error) {
 	entries, err := DoGetEntries(ctx, client, site, "")
 	if err != nil {
@@ -107,8 +119,10 @@ func DoClear(ctx context.Context, client gofi.Client, site string, dryRun bool) 
 		return entries, nil
 	}
 	for _, entry := range entries {
+		// A MAC selects exactly one record, so there is no ambiguity for
+		// force to waive.
 		identifier := DeleteIdentifier{MAC: entry.MAC}
-		if err := DoDel(ctx, client, site, identifier, "", true, false, false); err != nil {
+		if err := DoDel(ctx, client, site, identifier, "", false, false, false); err != nil {
 			return nil, fmt.Errorf("clearing %s (%s): %w", entry.Hostname, entry.MAC, err)
 		}
 	}
@@ -331,22 +345,51 @@ func DoAdd(ctx context.Context, client gofi.Client, site string, entry *HostEntr
 	return nil
 }
 
+// DoDel releases the fixed-IP reservation of every user the identifier
+// selects, and deletes the matching DNS records unless keepDNS. The user
+// record itself is never deleted (C-IPS-009): DELETE /rest/user answers 404
+// on a UDM, and the record is the client's identity, not the reservation.
+//
+// force waives only the ambiguity guard (C-IPS-006): an identifier matching
+// several reservations is refused with ErrAmbiguous unless force is set, in
+// which case every match is released.
 func DoDel(ctx context.Context, client gofi.Client, site string, identifier DeleteIdentifier, dnsDomainOverride string, force, keepDNS, dryRun bool) error {
-	user, err := findUserByIdentifier(ctx, client, site, identifier)
+	users, err := findUsersByIdentifier(ctx, client, site, identifier)
 	if err != nil {
 		return err
 	}
 
+	if len(users) > 1 && !force {
+		fmt.Fprintf(os.Stderr, "Multiple records match %s:\n", describeIdentifier(identifier))
+		for _, user := range users {
+			fmt.Fprintf(os.Stderr, "  %s %s %s\n", displayName(user), user.MAC, user.FixedIP)
+		}
+		return fmt.Errorf("%w: %s matches %d records; use --mac to be specific, or --force to remove them all",
+			ErrAmbiguous, describeIdentifier(identifier), len(users))
+	}
+
+	for _, user := range users {
+		if err := releaseReservation(ctx, client, site, user, dnsDomainOverride, keepDNS, dryRun); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// releaseReservation clears one user's fixed IP and, unless keepDNS, its DNS
+// records. DNS goes first so a failed clear never leaves a record pointing at
+// an address the controller no longer reserves (I-IPS-002).
+func releaseReservation(ctx context.Context, client gofi.Client, site string, user *types.User, dnsDomainOverride string, keepDNS, dryRun bool) error {
 	userName := displayName(user)
 
 	fmt.Printf("Found: %s %s %s\n", userName, user.MAC, user.FixedIP)
 
+	if !user.UseFixedIP {
+		return fmt.Errorf("user %s has no fixed IP to remove", userName)
+	}
+
 	if dryRun {
-		if force {
-			fmt.Printf("  Would delete user entry for %s\n", userName)
-		} else {
-			fmt.Printf("  Would remove fixed IP assignment\n")
-		}
+		fmt.Printf("  Would remove fixed IP assignment\n")
 		if !keepDNS {
 			fmt.Printf("  Would delete DNS record(s) for %s -> %s\n", resolveHostname(*user), user.FixedIP)
 		}
@@ -367,22 +410,22 @@ func DoDel(ctx context.Context, client gofi.Client, site string, identifier Dele
 		}
 	}
 
-	if force {
-		if err := client.Users().Delete(ctx, site, user.ID); err != nil {
-			return fmt.Errorf("failed to delete user: %w", err)
-		}
-		fmt.Printf("  Deleted user entry for %s\n", userName)
-	} else {
-		if !user.UseFixedIP {
-			return fmt.Errorf("user %s has no fixed IP to remove", userName)
-		}
-		if err := client.Users().ClearFixedIP(ctx, site, user.MAC); err != nil {
-			return fmt.Errorf("failed to clear fixed IP: %w", err)
-		}
-		fmt.Printf("  Removed fixed IP assignment\n")
+	if err := client.Users().ClearFixedIP(ctx, site, user.MAC); err != nil {
+		return fmt.Errorf("failed to clear fixed IP: %w", err)
 	}
-
+	fmt.Printf("  Removed fixed IP assignment\n")
 	return nil
+}
+
+func describeIdentifier(identifier DeleteIdentifier) string {
+	switch {
+	case identifier.MAC != "":
+		return "MAC " + identifier.MAC
+	case identifier.IP != "":
+		return "IP " + identifier.IP
+	default:
+		return fmt.Sprintf("name %q", identifier.Name)
+	}
 }
 
 func checkAddConflicts(ctx context.Context, client gofi.Client, site string, entry *HostEntry, domain string) error {
@@ -394,29 +437,36 @@ func checkAddConflicts(ctx context.Context, client gofi.Client, site string, ent
 	macAddress := strings.ToLower(entry.MAC)
 	for _, user := range users {
 		if user.UseFixedIP && user.FixedIP == entry.IP && strings.ToLower(user.MAC) != macAddress {
-			return fmt.Errorf("IP %s is already assigned to %s (%s)\nUse --force to override", entry.IP, displayName(&user), user.MAC)
+			return fmt.Errorf("%w: IP %s is already assigned to %s (%s)\nUse --force to override", ErrConflict, entry.IP, displayName(&user), user.MAC)
 		}
 		if strings.ToLower(user.MAC) == macAddress && user.UseFixedIP && user.FixedIP != entry.IP {
-			return fmt.Errorf("MAC %s already has fixed IP %s (assigned to %s)\nUse --force to override", macAddress, user.FixedIP, displayName(&user))
+			return fmt.Errorf("%w: MAC %s already has fixed IP %s (assigned to %s)\nUse --force to override", ErrConflict, macAddress, user.FixedIP, displayName(&user))
 		}
 	}
 
 	dnsKey := entry.Hostname + "." + domain
 	existingDNS, _ := client.DNS().GetByName(ctx, site, dnsKey)
 	if existingDNS != nil && existingDNS.Value != entry.IP {
-		return fmt.Errorf("DNS record %s already points to %s (not %s)\nUse --force to override", dnsKey, existingDNS.Value, entry.IP)
+		return fmt.Errorf("%w: DNS record %s already points to %s (not %s)\nUse --force to override", ErrConflict, dnsKey, existingDNS.Value, entry.IP)
 	}
 
 	return nil
 }
 
-func findUserByIdentifier(ctx context.Context, client gofi.Client, site string, identifier DeleteIdentifier) (*types.User, error) {
+// findUsersByIdentifier returns every user the identifier selects. A MAC
+// selects at most one. An IP selects every reservation holding it. A name
+// selects every user whose name or hostname matches, narrowed to those
+// holding a reservation when any do (ips rm acts on reservations, so a
+// same-named record without one is not a competing match); with no name
+// match it falls back to the reservation holding the name's DNS address.
+// The caller decides what more than one match means.
+func findUsersByIdentifier(ctx context.Context, client gofi.Client, site string, identifier DeleteIdentifier) ([]*types.User, error) {
 	if identifier.MAC != "" {
 		user, err := client.Users().GetByMAC(ctx, site, strings.ToLower(identifier.MAC))
 		if err != nil {
 			return nil, fmt.Errorf("no user found with MAC %s", identifier.MAC)
 		}
-		return user, nil
+		return []*types.User{user}, nil
 	}
 
 	users, err := client.Users().List(ctx, site)
@@ -425,43 +475,50 @@ func findUserByIdentifier(ctx context.Context, client gofi.Client, site string, 
 	}
 
 	if identifier.IP != "" {
-		var matches []*types.User
-		for index := range users {
-			if users[index].UseFixedIP && users[index].FixedIP == identifier.IP {
-				matches = append(matches, &users[index])
-			}
-		}
+		matches := reservationsAt(users, identifier.IP)
 		if len(matches) == 0 {
 			return nil, fmt.Errorf("no user found with fixed IP %s", identifier.IP)
 		}
-		if len(matches) > 1 {
-			fmt.Fprintf(os.Stderr, "Multiple users found with IP %s:\n", identifier.IP)
-			for _, match := range matches {
-				fmt.Fprintf(os.Stderr, "  %s (%s)\n", displayName(match), match.MAC)
-			}
-			return nil, fmt.Errorf("multiple matches for IP %s, use --mac to be specific", identifier.IP)
-		}
-		return matches[0], nil
+		return matches, nil
 	}
 
 	if identifier.Name != "" {
+		var named, reserved []*types.User
 		for index := range users {
 			if strings.EqualFold(users[index].Name, identifier.Name) || strings.EqualFold(users[index].Hostname, identifier.Name) {
-				return &users[index], nil
+				named = append(named, &users[index])
+				if users[index].UseFixedIP {
+					reserved = append(reserved, &users[index])
+				}
 			}
+		}
+		if len(reserved) > 0 {
+			return reserved, nil
+		}
+		if len(named) > 0 {
+			return named, nil
 		}
 		dnsRecord, _ := client.DNS().GetByName(ctx, site, identifier.Name)
 		if dnsRecord != nil && dnsRecord.Value != "" {
-			for index := range users {
-				if users[index].UseFixedIP && users[index].FixedIP == dnsRecord.Value {
-					return &users[index], nil
-				}
+			if matches := reservationsAt(users, dnsRecord.Value); len(matches) > 0 {
+				return matches, nil
 			}
 		}
 		return nil, fmt.Errorf("no user found with name %q", identifier.Name)
 	}
 
 	return nil, fmt.Errorf("no identifier specified (use --name, --mac, or --ip)")
+}
+
+// reservationsAt returns every user holding a fixed-IP reservation for ip.
+func reservationsAt(users []types.User, ip string) []*types.User {
+	var matches []*types.User
+	for index := range users {
+		if users[index].UseFixedIP && users[index].FixedIP == ip {
+			matches = append(matches, &users[index])
+		}
+	}
+	return matches
 }
 
 // dnsResolver queries the UDM's own DNS, returning the A records it serves for

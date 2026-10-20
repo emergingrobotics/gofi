@@ -3,11 +3,14 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/unifi-go/gofi/utilities/internal/ips"
 )
 
 func TestConfigInit_writesStarterFile(t *testing.T) {
@@ -299,5 +302,94 @@ func TestNetworkShow_requiresOneArg(t *testing.T) {
 	cmd.SetArgs([]string{"show"})
 	if err := cmd.Execute(); err == nil {
 		t.Fatal("network show with no name: error = nil, want a usage error")
+	}
+}
+
+// C-IPS-004/C-IPS-006 under C-GLOBAL-012: an ips add conflict and an
+// ambiguous ips rm identifier are guard refusals (exit 3); any other ips
+// error stays exit 1.
+func TestRefuseGuards_mapsIPsGuardsToExitRefused(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"conflict", fmt.Errorf("%w: IP taken", ips.ErrConflict), exitRefused},
+		{"ambiguous", fmt.Errorf("%w: two matches", ips.ErrAmbiguous), exitRefused},
+		{"other", errors.New("no user found with MAC aa:bb:cc:dd:ee:ff"), exitError},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := codeFor(refuseGuards(tc.err)); got != tc.want {
+				t.Errorf("codeFor(refuseGuards(%v)) = %d, want %d", tc.err, got, tc.want)
+			}
+		})
+	}
+	if refuseGuards(nil) != nil {
+		t.Error("refuseGuards(nil) != nil")
+	}
+}
+
+// B-SKILL-004, C-SKILL-004: install-skill runs from the root command without
+// loading config.toml, so a malformed config and missing credentials don't
+// block it.
+func TestInstallSkill_ignoresBrokenConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfg := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(cfg, []byte("default = \n[targets\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GOFI_CONFIG", cfg)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(dir, "data"))
+	t.Setenv("UNIFI_API_KEY", "")
+
+	var out bytes.Buffer
+	root := newRootCommand()
+	root.SetOut(&out)
+	root.SetArgs([]string{"install-skill"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("install-skill with a broken config: %v", err)
+	}
+	if !strings.Contains(out.String(), "installed skill gofi-cli") {
+		t.Errorf("stdout = %q, want an installed confirmation", out.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "data", "skills", "gofi-cli", "SKILL.md")); err != nil {
+		t.Errorf("skill not installed: %v", err)
+	}
+}
+
+// B-SKILL-002/003, C-SKILL-005/006: a re-run is a no-op (exit 0), an edited
+// copy is refused (exit 3), and -f replaces it (exit 0).
+func TestInstallSkill_exitCodes(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("GOFI_CONFIG", filepath.Join(dir, "none.toml"))
+	t.Setenv("XDG_DATA_HOME", dir)
+
+	run := func(args ...string) (string, error) {
+		var out bytes.Buffer
+		root := newRootCommand()
+		root.SetOut(&out)
+		root.SetArgs(append([]string{"install-skill"}, args...))
+		err := root.Execute()
+		return out.String(), err
+	}
+
+	if _, err := run(); err != nil {
+		t.Fatalf("first install: %v", err)
+	}
+	out, err := run()
+	if err != nil || !strings.Contains(out, "nothing changed") {
+		t.Fatalf("identical re-run: out=%q err=%v, want a no-op", out, err)
+	}
+
+	skillFile := filepath.Join(dir, "skills", "gofi-cli", "SKILL.md")
+	if err := os.WriteFile(skillFile, []byte("edited\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := run(); codeFor(err) != exitRefused {
+		t.Fatalf("edited copy: err=%v (exit %d), want exit %d", err, codeFor(err), exitRefused)
+	}
+	if out, err := run("-f"); err != nil || !strings.Contains(out, "replaced skill") {
+		t.Fatalf("-f: out=%q err=%v, want replaced", out, err)
 	}
 }

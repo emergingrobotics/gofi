@@ -128,17 +128,13 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request, site, 
 	writeAPIResponse(w, []interface{}{user})
 }
 
-// handleDeleteUser deletes a user.
+// handleDeleteUser answers DELETE /rest/user/<id> the way a UDM does: 404,
+// for every id, leaving the record in place. Real controllers do not remove
+// known clients through this endpoint (CLAUDE.md, Controller API Quirks), so
+// the mock refuses it too rather than letting a removal pass here that fails
+// against hardware. A client is removed with the batch forget-sta command.
 func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request, site, id string) {
-	user := s.state.GetKnownClient(id)
-	if user == nil {
-		writeNotFound(w)
-		return
-	}
-
-	s.state.DeleteKnownClient(id)
-
-	writeAPIResponse(w, []interface{}{})
+	writeNotFound(w)
 }
 
 // handleUserGroups routes user group requests.

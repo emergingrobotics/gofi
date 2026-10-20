@@ -93,6 +93,7 @@ reproducible from a file rather than from click history in the UniFi app.`,
 		newClientsCommand(),
 		newUsersCommand(),
 		newProfileCommand(),
+		newInstallSkillCommand(),
 	)
 	return root
 }

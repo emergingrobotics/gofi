@@ -325,10 +325,29 @@ than writing anything — only the fixed-IPs section is a real write today.
 Acts on your machine, never a controller. See [Config file](#config-file) above for the
 full reference; commands are `config show`, `config targets`, `config init [--force]`.
 
+## Agent skill: `gofi install-skill`
+
+`gofi install-skill` writes the agent skill embedded in the binary to
+`$XDG_DATA_HOME/skills/gofi-cli/` (default `~/.local/share/skills/gofi-cli/`), following
+the Skill Self-Installation Specification. It is the one top-level verb outside the
+`<area> <action>` grammar, because that specification fixes its spelling for every
+conforming tool.
+
+```bash
+gofi install-skill       # install, or report "nothing changed" if identical
+gofi install-skill -f    # replace a copy that differs (e.g. one edited by hand)
+```
+
+It loads no config file and needs no credentials or controller, so it works on a fresh
+binary. It never prompts. Exit codes: `0` installed, replaced, or already identical;
+`3` a different copy exists and `--force` wasn't given (left untouched); `1` the store
+isn't writable or can't be located. It writes only its own `gofi-cli` directory, staging
+beside the store and renaming into place so a failure never leaves a partial skill.
+
 ## Shell completion
 
 `gofi completion <shell>` prints a completion script — see the
-[README's Step 3](../README.md#step-3--shell-completion-optional) for how to install it
+[README's Step 4](../README.md#step-4--shell-completion-optional) for how to install it
 permanently per shell. Once installed: `gofi <TAB>` lists areas, `gofi ips <TAB>` lists
 actions, `gofi ips add --<TAB>` lists flags. Flag *values* (a target name, a MAC address,
 a site) don't complete — only the command and flag names themselves.

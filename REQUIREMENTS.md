@@ -127,7 +127,7 @@ split from `DNS`.
 - **C-IPS-005** [Target] — `ips rm` accepts exactly one of `--name`/`--mac`/`--ip`.
   Zero or more than one given is a usage error (exit 2), not a silent pick of the
   first-given identifier.
-- **C-IPS-006** [Shipped→Target] — An ambiguous `--name`/`--ip` matching more than one
+- **C-IPS-006** [Shipped] — An ambiguous `--name`/`--ip` matching more than one
   record on `ips rm` is refused without `--force`, as under `gofips` today. The exit
   code changes from `1` to `3` under C-GLOBAL-012, since this is a guard, not a
   failure.
@@ -379,6 +379,72 @@ the controller.
 - **B-CONFIG-002** — Given a `config.toml` with a syntax error, when `config show`
   runs, then it reports the parse error and its location, not a generic failure.
   [Target]
+
+## SKILL — Self-Installed Agent Skill
+
+New; no predecessor tool. `gofi` carries the agent skill that teaches its use and
+installs it with `gofi install-skill`, per the Skill Self-Installation
+Specification v0.3 (the `sm` project's `SKILL-INSTALL-SPEC.md`) and the Skills
+Directory Specification it builds on. Acts on the local machine, never the
+controller.
+
+`install-skill` is the one top-level verb outside the `<area> <action>` grammar
+(C-GLOBAL-001): its spelling is fixed by that specification so any conforming tool
+can be asked to install its skill without being told how.
+
+### Constraints
+
+- **C-SKILL-001** [Shipped] — The binary embeds exactly one skill, `gofi-cli`, from
+  `skill/gofi-cli/` via `//go:embed` in `skill/embed.go`. Installing never reads a
+  file outside the executable.
+- **C-SKILL-002** [Shipped] — The embedded skill conforms to the directory
+  specification: `SKILL.md` frontmatter `name` equals `gofi-cli`, `description` is
+  one short line, and the body references nothing outside the skill directory (no
+  repository paths such as `docs/`, `REQUIREMENTS.md`, or `src/`).
+- **C-SKILL-003** [Shipped] — The store is `$XDG_DATA_HOME/skills/`, falling back to
+  `$HOME/.local/share/skills/` when `XDG_DATA_HOME` is unset, empty, or relative.
+  The store is created if missing. Only `<store>/gofi-cli` is ever written; no
+  index, lock, or manifest file.
+- **C-SKILL-004** [Shipped] — `install-skill` loads no config file, resolves no
+  target, reads no credentials, and opens no connection. A malformed
+  `config.toml` does not affect it.
+- **C-SKILL-005** [Shipped] — An existing `<store>/gofi-cli` that differs from the
+  embedded skill is left unchanged and the command exits 3 (refused), naming the
+  skill and the store path, unless `-f`/`--force` is given, which replaces it. An
+  existing directory equivalent to the embedded skill (same relative paths,
+  identical file bytes; permissions and timestamps ignored) is a successful no-op
+  with or without `--force`. Never prompts.
+- **C-SKILL-006** [Shipped] — Exit codes follow C-GLOBAL-012: `0` installed,
+  replaced, or unchanged; `3` refused; `1` write failure or unresolvable store; `2`
+  usage error. `install-skill --help` documents them.
+- **C-SKILL-007** [Shipped] — Writes are crash-safe: the skill is staged in the
+  parent of the symlink-resolved store as `.install-skill-gofi-cli.<unique>`, then
+  renamed into place. Under `--force` the old directory is moved aside into the
+  same staging area only after the new one is fully staged, then deleted. Staging
+  and set-aside directories are removed on every exit path; leftovers from an
+  earlier crash older than ten minutes are swept before the write.
+
+### Invariants
+
+- **I-SKILL-001** [Shipped] — No failure leaves a partial or malformed `gofi-cli`
+  directory in the store.
+- **I-SKILL-002** [Shipped] — No entry in the store other than `gofi-cli` is
+  created, modified, or removed.
+
+### Behavior
+
+- **B-SKILL-001** — Given no store directory, when `gofi install-skill` runs, then
+  it creates the store, writes `gofi-cli`, prints its path to stdout, and exits 0.
+  [Shipped]
+- **B-SKILL-002** — Given an installed `gofi-cli` with one edited file, when
+  `gofi install-skill` runs without `--force`, then it exits 3 and the edited file
+  is unchanged; with `--force`, it exits 0 and the file matches the embedded copy.
+  [Shipped]
+- **B-SKILL-003** — Given an installed `gofi-cli` identical to the embedded skill,
+  when `gofi install-skill` runs, then it exits 0, reports nothing changed, and
+  modifies nothing. [Shipped]
+- **B-SKILL-004** — Given a malformed `config.toml` and no credentials, when
+  `gofi install-skill` runs, then it succeeds. [Shipped]
 
 ## Traceability
 

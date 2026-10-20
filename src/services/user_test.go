@@ -75,6 +75,38 @@ func TestUserService_GetByMAC(t *testing.T) {
 	}
 }
 
+// A UDM answers DELETE /rest/user/<id> with 404 and keeps the record
+// (CLAUDE.md, Controller API Quirks); the mock must reproduce that so code
+// relying on Delete fails here the way it fails against hardware.
+func TestUserService_Delete_answers404LikeHardware(t *testing.T) {
+	server := mock.NewServer(mock.WithoutAuth(), mock.WithoutCSRF())
+	defer server.Close()
+
+	server.State().AddKnownClient(&types.User{
+		ID:   "user1",
+		MAC:  "aa:bb:cc:dd:ee:ff",
+		Name: "Test User",
+	})
+
+	trans, _ := newTestUserTransport(server.URL())
+	svc := NewUserService(trans)
+
+	if err := svc.Delete(context.Background(), "default", "user1"); err == nil {
+		t.Fatal("Delete: error = nil, want the 404 a UDM returns")
+	}
+	if err := svc.DeleteByMAC(context.Background(), "default", "aa:bb:cc:dd:ee:ff"); err == nil {
+		t.Fatal("DeleteByMAC: error = nil, want the 404 a UDM returns")
+	}
+
+	users, err := svc.List(context.Background(), "default")
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	if len(users) != 1 {
+		t.Errorf("Expected the user record to survive, got %d users", len(users))
+	}
+}
+
 func TestUserService_Create(t *testing.T) {
 	server := mock.NewServer(mock.WithoutAuth(), mock.WithoutCSRF())
 	defer server.Close()
