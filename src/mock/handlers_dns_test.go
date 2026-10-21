@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src/types"
 )
 
 func dnsPath(server *Server, suffix string) string {

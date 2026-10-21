@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	gofi "github.com/unifi-go/gofi/src"
-	"github.com/unifi-go/gofi/utilities/internal/config"
-	"github.com/unifi-go/gofi/utilities/internal/conn"
+	gofi "github.com/gherlein/gofi/src"
+	"github.com/gherlein/gofi/utilities/internal/config"
+	"github.com/gherlein/gofi/utilities/internal/conn"
 )
 
 // globals holds every persistent flag, shared by every command (C-GLOBAL-009).

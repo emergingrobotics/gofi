@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/unifi-go/gofi/src/transport"
+	"github.com/gherlein/gofi/src/transport"
 )
 
 // Manager manages authentication state.

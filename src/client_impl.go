@@ -10,9 +10,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/unifi-go/gofi/src/auth"
-	"github.com/unifi-go/gofi/src/services"
-	"github.com/unifi-go/gofi/src/transport"
+	"github.com/gherlein/gofi/src/auth"
+	"github.com/gherlein/gofi/src/services"
+	"github.com/gherlein/gofi/src/transport"
 )
 
 // client implements the Client interface.

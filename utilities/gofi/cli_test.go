@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unifi-go/gofi/skill"
-	"github.com/unifi-go/gofi/utilities/internal/ips"
+	"github.com/gherlein/gofi/skill"
+	"github.com/gherlein/gofi/utilities/internal/ips"
 )
 
 func TestConfigInit_writesStarterFile(t *testing.T) {

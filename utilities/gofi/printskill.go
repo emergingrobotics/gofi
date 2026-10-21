@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/unifi-go/gofi/skill"
+	"github.com/gherlein/gofi/skill"
 )
 
 func newPrintSkillCommand() *cobra.Command {

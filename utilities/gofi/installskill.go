@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/unifi-go/gofi/skill"
-	"github.com/unifi-go/gofi/utilities/internal/installskill"
+	"github.com/gherlein/gofi/skill"
+	"github.com/gherlein/gofi/utilities/internal/installskill"
 )
 
 func newInstallSkillCommand() *cobra.Command {

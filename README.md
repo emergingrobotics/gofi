@@ -2,8 +2,8 @@
 
 # gofi - Go UniFi Controller Client
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/unifi-go/gofi.svg)](https://pkg.go.dev/github.com/unifi-go/gofi/src)
-[![Go Report Card](https://goreportcard.com/badge/github.com/unifi-go/gofi)](https://goreportcard.com/report/github.com/unifi-go/gofi)
+[![Go Reference](https://pkg.go.dev/badge/github.com/gherlein/gofi.svg)](https://pkg.go.dev/github.com/gherlein/gofi/src)
+[![Go Report Card](https://goreportcard.com/badge/github.com/gherlein/gofi)](https://goreportcard.com/report/github.com/gherlein/gofi)
 
 Programmatic control of Ubiquiti UniFi UDM Pro devices. This repository is two things:
 
@@ -62,6 +62,29 @@ make examples       # build the example programs into ./bin/examples
 ```
 
 `make install` puts `gofi` on your `PATH` (override the destination with `make install INSTALL_DIR=/somewhere/else`).
+
+**Install with Homebrew.** Releases are published to a Homebrew tap. The
+`brew trust` step is required because Homebrew refuses to load formulae from a
+tap you have not trusted:
+
+```bash
+brew tap gherlein/tap
+brew trust gherlein/tap
+brew install gofi
+```
+
+The formula lists Linux and macOS binaries for amd64 and arm64; only Linux/amd64
+has actually been run and tested so far.
+
+**Quick install for Go users.** To install just the binary, with no checkout,
+run:
+
+```bash
+go install github.com/gherlein/gofi/utilities/gofi@latest
+```
+
+It lands in your Go binary directory (`$GOBIN`, or `~/go/bin` by default; put
+that on your `PATH`).
 
 ## Step 3 — Install the agent skill (optional)
 
@@ -202,7 +225,7 @@ The gofi module gives you type-safe, concurrent-safe access to UniFi Network App
 endpoints (v1, v2, REST, and WebSocket) — the same library the `gofi` CLI is built on.
 
 ```bash
-go get github.com/unifi-go/gofi
+go get github.com/gherlein/gofi
 ```
 
 ```go
@@ -214,7 +237,7 @@ import (
     "log"
     "os"
 
-    "github.com/unifi-go/gofi/src"
+    "github.com/gherlein/gofi/src"
 )
 
 func main() {
@@ -278,7 +301,7 @@ Tested with UniFi OS 4.x and 5.x, Network Application 10.x, on UDM Pro, UDM SE, 
 - [SDK / API guide](./docs/api-guide.md) — the full Go library reference and example programs
 - [Alternate local API](./docs/alternate-local-api.md) — local username/password auth (secondary path)
 - [Design](./docs/DESIGN.md) — architecture details
-- [GoDoc](https://pkg.go.dev/github.com/unifi-go/gofi/src) — API reference
+- [GoDoc](https://pkg.go.dev/github.com/gherlein/gofi/src) — API reference
 
 ## Contributing
 
@@ -287,7 +310,7 @@ Contributions are welcome. Please ensure all tests pass (`make test`), code pass
 
 ## License
 
-MIT License.
+[MIT License](LICENSE).
 
 ## Acknowledgments
 

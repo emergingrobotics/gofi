@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src/types"
 )
 
 // handleDNSRecords routes local (static) DNS record requests (v2 API).

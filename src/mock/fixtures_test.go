@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src/types"
 )
 
 func TestDefaultFixtures(t *testing.T) {

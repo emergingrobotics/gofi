@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/unifi-go/gofi/src/internal"
-	"github.com/unifi-go/gofi/src/types"
-	"github.com/unifi-go/gofi/src/websocket"
+	"github.com/gherlein/gofi/src/internal"
+	"github.com/gherlein/gofi/src/types"
+	"github.com/gherlein/gofi/src/websocket"
 )
 
 // eventService implements EventService.

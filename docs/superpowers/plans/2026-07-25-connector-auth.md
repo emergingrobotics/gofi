@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Module import path is `github.com/unifi-go/gofi` — do NOT change it (separate task, touches every import).
+- Module import path is `github.com/gherlein/gofi` — do NOT change it (separate task, touches every import).
 - Every new function gets a test; every endpoint is exercised through the mock; `make test` must pass (CLAUDE.md rule).
 - Use `gofi.NewValidationError(field, message)` for all construction-time validation.
 - Do NOT add `SetAPIKey` (or any method) to the `transport.Transport` interface — the key is known at construction.
@@ -856,7 +856,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Consumes: Tasks 3–4 (`gofi.Config`).
 - Produces: package `conn` with exported env-name constants and
   `func ResolveConfig(w io.Writer, host string, port int, site string, secure bool) (*gofi.Config, error)`.
-  It reads the environment, returns a ready `*gofi.Config` (connector mode when `UNIFI_API_KEY`+`UNIFI_CONSOLE_ID` are set, else local username/password), and writes a one-line note to `w` when a key overrides a present username/password. Import path: `github.com/unifi-go/gofi/utilities/internal/conn`.
+  It reads the environment, returns a ready `*gofi.Config` (connector mode when `UNIFI_API_KEY`+`UNIFI_CONSOLE_ID` are set, else local username/password), and writes a one-line note to `w` when a key overrides a present username/password. Import path: `github.com/gherlein/gofi/utilities/internal/conn`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -982,7 +982,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/unifi-go/gofi"
+	"github.com/gherlein/gofi"
 )
 
 // Environment variable names used by all three CLIs.
@@ -1073,7 +1073,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Import the helper and drop the local env consts**
 
-In each `main.go`, add the import `"github.com/unifi-go/gofi/utilities/internal/conn"`. Delete the tool's local `const ( envUsername = ... envPassword = ... envControllerIP = ... )` block — those names now live in `conn`.
+In each `main.go`, add the import `"github.com/gherlein/gofi/utilities/internal/conn"`. Delete the tool's local `const ( envUsername = ... envPassword = ... envControllerIP = ... )` block — those names now live in `conn`.
 
 - [ ] **Step 2: Replace the credential/host-resolution block with a call to the helper**
 

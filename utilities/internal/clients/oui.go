@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unifi-go/gofi/utilities/internal/config"
+	"github.com/gherlein/gofi/utilities/internal/config"
 )
 
 const (

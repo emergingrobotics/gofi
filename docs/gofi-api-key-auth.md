@@ -269,7 +269,7 @@ Tests to add:
 
 ## Out of scope, worth reporting
 
-`go.mod` declares `module github.com/unifi-go/gofi` but the repo is
+`go.mod` declares `module github.com/gherlein/gofi` but the repo is
 `github.com/emergingrobotics/gofi`. `go get` against the real URL will fail on the path
 mismatch. Mention it to the user; do not change it as part of this task, since it touches
 every import in the tree and is a separate commit.

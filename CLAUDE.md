@@ -24,8 +24,8 @@ A Go module for programmatic control of UniFi UDM Pro devices (v10+).
 
 ## Architecture Overview
 
-The module path stays `github.com/unifi-go/gofi`; the library source lives under
-`src/`, so the root package is imported as `github.com/unifi-go/gofi/src` (package
+The module path stays `github.com/gherlein/gofi`; the library source lives under
+`src/`, so the root package is imported as `github.com/gherlein/gofi/src` (package
 name is still `gofi`). `examples/` and `utilities/` remain at the repo top level.
 
 ```

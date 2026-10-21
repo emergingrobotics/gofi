@@ -3,7 +3,7 @@ package mock
 import (
 	"testing"
 
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src/types"
 )
 
 func TestNewState(t *testing.T) {

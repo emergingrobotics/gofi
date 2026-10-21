@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src/types"
 )
 
 // ParseAPIResponse parses a UniFi API response into the generic APIResponse type.

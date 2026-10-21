@@ -9,7 +9,7 @@ import (
 	"sort"
 	"text/tabwriter"
 
-	"github.com/unifi-go/gofi/src"
+	"github.com/gherlein/gofi/src"
 )
 
 const (

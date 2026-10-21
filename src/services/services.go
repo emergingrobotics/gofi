@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src/types"
 )
 
 // Placeholder service interfaces - will be implemented in later phases

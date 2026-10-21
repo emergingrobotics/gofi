@@ -662,7 +662,7 @@ Expected: FAIL — `ResolveTargetConfig` undefined.
 Append to `utilities/internal/conn/conn.go` (the existing `ResolveConfig` and its constants stay, unchanged, for now — `ResolveTargetConfig` is additive and becomes what `root.go` actually calls):
 
 ```go
-import "github.com/unifi-go/gofi/utilities/internal/config"
+import "github.com/gherlein/gofi/utilities/internal/config"
 
 // ResolveTargetConfig builds a *gofi.Config from a resolved config target
 // (may be nil), CLI flag overrides, and the environment, implementing
@@ -859,9 +859,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	gofi "github.com/unifi-go/gofi/src"
-	"github.com/unifi-go/gofi/utilities/internal/config"
-	"github.com/unifi-go/gofi/utilities/internal/conn"
+	gofi "github.com/gherlein/gofi/src"
+	"github.com/gherlein/gofi/utilities/internal/config"
+	"github.com/gherlein/gofi/utilities/internal/conn"
 )
 
 // globals holds every persistent flag, shared by every command (C-GLOBAL-009).
@@ -1128,7 +1128,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/unifi-go/gofi/utilities/internal/config"
+	"github.com/gherlein/gofi/utilities/internal/config"
 )
 
 func newConfigCommand() *cobra.Command {
@@ -1378,7 +1378,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/unifi-go/gofi/utilities/internal/ips"
+	"github.com/gherlein/gofi/utilities/internal/ips"
 )
 
 func newIPsCommand() *cobra.Command {
@@ -1942,7 +1942,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/unifi-go/gofi/utilities/internal/dns"
+	"github.com/gherlein/gofi/utilities/internal/dns"
 )
 
 func newDNSCommand() *cobra.Command {
@@ -2232,7 +2232,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/unifi-go/gofi/utilities/internal/network"
+	"github.com/gherlein/gofi/utilities/internal/network"
 )
 
 func newNetworkCommand() *cobra.Command {
@@ -2405,8 +2405,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/unifi-go/gofi/utilities/internal/clients"
-	"github.com/unifi-go/gofi/utilities/internal/config"
+	"github.com/gherlein/gofi/utilities/internal/clients"
+	"github.com/gherlein/gofi/utilities/internal/config"
 )
 
 func newClientsCommand() *cobra.Command {
@@ -2737,7 +2737,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/unifi-go/gofi/utilities/internal/users"
+	"github.com/gherlein/gofi/utilities/internal/users"
 )
 
 func newUsersCommand() *cobra.Command {
@@ -2941,9 +2941,9 @@ import (
 	"encoding/json"
 	"io"
 
-	gofi "github.com/unifi-go/gofi/src"
-	"github.com/unifi-go/gofi/utilities/internal/ips"
-	"github.com/unifi-go/gofi/utilities/internal/network"
+	gofi "github.com/gherlein/gofi/src"
+	"github.com/gherlein/gofi/utilities/internal/ips"
+	"github.com/gherlein/gofi/utilities/internal/network"
 )
 
 // WLANEntry is the portable subset of a WLAN's configuration.
@@ -3180,7 +3180,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/unifi-go/gofi/utilities/internal/profile"
+	"github.com/gherlein/gofi/utilities/internal/profile"
 )
 
 func newProfileCommand() *cobra.Command {

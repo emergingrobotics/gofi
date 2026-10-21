@@ -12,9 +12,9 @@ import (
 	"fmt"
 	"io"
 
-	gofi "github.com/unifi-go/gofi/src"
-	"github.com/unifi-go/gofi/utilities/internal/ips"
-	"github.com/unifi-go/gofi/utilities/internal/network"
+	gofi "github.com/gherlein/gofi/src"
+	"github.com/gherlein/gofi/utilities/internal/ips"
+	"github.com/gherlein/gofi/utilities/internal/network"
 )
 
 // WLANEntry is the portable subset of a WLAN's configuration.

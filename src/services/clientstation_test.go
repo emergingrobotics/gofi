@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unifi-go/gofi/src/mock"
-	"github.com/unifi-go/gofi/src/transport"
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src/mock"
+	"github.com/gherlein/gofi/src/transport"
+	"github.com/gherlein/gofi/src/types"
 )
 
 func newTestClientTransport(url string) (transport.Transport, error) {

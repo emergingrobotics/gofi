@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/unifi-go/gofi/utilities/internal/dns"
+	"github.com/gherlein/gofi/utilities/internal/dns"
 )
 
 func newDNSCommand() *cobra.Command {

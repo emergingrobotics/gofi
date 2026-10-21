@@ -3,7 +3,7 @@ package gofi
 import (
 	"context"
 
-	"github.com/unifi-go/gofi/src/services"
+	"github.com/gherlein/gofi/src/services"
 )
 
 // Client is the main interface for interacting with a UDM Pro.

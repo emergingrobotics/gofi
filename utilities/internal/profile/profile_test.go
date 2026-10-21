@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unifi-go/gofi/src/services"
-	"github.com/unifi-go/gofi/src/types"
-	"github.com/unifi-go/gofi/utilities/internal/ips"
-	"github.com/unifi-go/gofi/utilities/internal/network"
+	"github.com/gherlein/gofi/src/services"
+	"github.com/gherlein/gofi/src/types"
+	"github.com/gherlein/gofi/utilities/internal/ips"
+	"github.com/gherlein/gofi/utilities/internal/network"
 )
 
 func TestCapture_omitsPassphrasesByDefault(t *testing.T) {

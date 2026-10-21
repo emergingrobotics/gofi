@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src/types"
 )
 
 // handleTrafficRules routes traffic rule requests (v2 API).

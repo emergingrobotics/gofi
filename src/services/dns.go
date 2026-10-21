@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/unifi-go/gofi/src/transport"
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src/transport"
+	"github.com/gherlein/gofi/src/types"
 )
 
 // dnsService implements DNSService.

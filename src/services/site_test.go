@@ -5,8 +5,8 @@ import (
 	"crypto/tls"
 	"testing"
 
-	"github.com/unifi-go/gofi/src/mock"
-	"github.com/unifi-go/gofi/src/transport"
+	"github.com/gherlein/gofi/src/mock"
+	"github.com/gherlein/gofi/src/transport"
 )
 
 func TestSiteService_List(t *testing.T) {

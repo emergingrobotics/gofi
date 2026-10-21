@@ -7,12 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.2.0] - 2026-10-21
+
 ### Changed
+- **BREAKING:** The module path changed from `github.com/unifi-go/gofi` to
+  `github.com/gherlein/gofi`, matching the repository it actually lives at (the old
+  path resolved nowhere). Every import must be updated; there is no compatibility
+  shim or redirect.
 - **BREAKING:** `gofips`, `gofimac`, `gofinet`, `gofidns`, and `gofiuser` are removed.
   One binary, `gofi`, replaces all five. See README's "Migrating from the old tools"
   for the command mapping.
 
 ### Added
+- Released via GoReleaser to GitHub Releases and the `gherlein/homebrew-tap` Homebrew
+  tap. See the README for `brew install gofi` and `go install` instructions.
 - `gofi config` — a TOML config file with named targets, supporting both local
   (username/password) and connector (API key) authentication modes.
 - `gofi ips clear`, `gofi network show`, `gofi clients vendor` — new commands with no

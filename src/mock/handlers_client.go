@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src/types"
 )
 
 // handleClients routes client/station requests.

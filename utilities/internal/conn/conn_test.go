@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unifi-go/gofi/utilities/internal/config"
+	"github.com/gherlein/gofi/utilities/internal/config"
 )
 
 func clearEnv(t *testing.T) {

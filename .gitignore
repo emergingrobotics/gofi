@@ -100,3 +100,6 @@ go.work.sum
 # Agent/process scratch (skill work artifacts)
 .llm/
 .superpowers/
+
+# GoReleaser build output
+/dist/

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src/types"
 )
 
 var testPortHTTPClient = &http.Client{

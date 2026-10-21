@@ -3,7 +3,7 @@ package mock
 import (
 	"sync"
 
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src/types"
 )
 
 // State holds the mock server's in-memory state.

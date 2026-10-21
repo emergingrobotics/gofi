@@ -9,8 +9,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/unifi-go/gofi/src"
-	"github.com/unifi-go/gofi/utilities/internal/config"
+	"github.com/gherlein/gofi/src"
+	"github.com/gherlein/gofi/utilities/internal/config"
 )
 
 // Environment variable names used by all three CLIs.

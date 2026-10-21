@@ -17,13 +17,13 @@ for a minimal starting example.
 ## Install
 
 ```bash
-go get github.com/unifi-go/gofi
+go get github.com/gherlein/gofi
 ```
 
 The importable package lives under `src/` and is named `gofi`:
 
 ```go
-import "github.com/unifi-go/gofi/src"   // used as gofi.New(...)
+import "github.com/gherlein/gofi/src"   // used as gofi.New(...)
 ```
 
 ## Authentication and configuration
@@ -279,4 +279,4 @@ of each `main.go`, or [`examples/README.md`](../examples/README.md), for specifi
 - [`docs/alternate-local-api.md`](alternate-local-api.md) — local username/password auth
 - [`docs/gofi-user-guide.md`](gofi-user-guide.md) — the `gofi` CLI's full command reference
 - [`docs/DESIGN.md`](DESIGN.md) — architecture details
-- [GoDoc](https://pkg.go.dev/github.com/unifi-go/gofi/src) — API reference
+- [GoDoc](https://pkg.go.dev/github.com/gherlein/gofi/src) — API reference

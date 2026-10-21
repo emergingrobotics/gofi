@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/unifi-go/gofi/utilities/internal/users"
+	"github.com/gherlein/gofi/utilities/internal/users"
 )
 
 func newUsersCommand() *cobra.Command {

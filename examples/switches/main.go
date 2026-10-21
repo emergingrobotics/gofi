@@ -11,8 +11,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/unifi-go/gofi/src"
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src"
+	"github.com/gherlein/gofi/src/types"
 )
 
 const (

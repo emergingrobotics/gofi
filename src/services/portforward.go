@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/unifi-go/gofi/src/internal"
-	"github.com/unifi-go/gofi/src/transport"
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src/internal"
+	"github.com/gherlein/gofi/src/transport"
+	"github.com/gherlein/gofi/src/types"
 )
 
 // portForwardService implements PortForwardService.

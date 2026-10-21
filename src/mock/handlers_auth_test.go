@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src/types"
 )
 
 // newTestClient returns an HTTP client that accepts self-signed certs.

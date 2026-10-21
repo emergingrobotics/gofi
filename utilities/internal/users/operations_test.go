@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	gofi "github.com/unifi-go/gofi/src"
-	"github.com/unifi-go/gofi/src/mock"
-	"github.com/unifi-go/gofi/src/types"
+	gofi "github.com/gherlein/gofi/src"
+	"github.com/gherlein/gofi/src/mock"
+	"github.com/gherlein/gofi/src/types"
 )
 
 func newTestClient(t *testing.T) (*mock.Server, gofi.Client) {

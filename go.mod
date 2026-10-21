@@ -1,4 +1,4 @@
-module github.com/unifi-go/gofi
+module github.com/gherlein/gofi
 
 go 1.25.0
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/unifi-go/gofi/utilities/internal/profile"
+	"github.com/gherlein/gofi/utilities/internal/profile"
 )
 
 func newProfileCommand() *cobra.Command {

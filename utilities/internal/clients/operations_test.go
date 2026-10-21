@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src/types"
 )
 
 func newTestOUIDatabase(t *testing.T) *OUIDatabase {

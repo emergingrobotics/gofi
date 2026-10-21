@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	gofi "github.com/unifi-go/gofi/src"
-	"github.com/unifi-go/gofi/src/types"
+	gofi "github.com/gherlein/gofi/src"
+	"github.com/gherlein/gofi/src/types"
 )
 
 var (

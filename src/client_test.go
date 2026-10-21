@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unifi-go/gofi/src/mock"
+	"github.com/gherlein/gofi/src/mock"
 )
 
 func TestNew_ValidConfig(t *testing.T) {

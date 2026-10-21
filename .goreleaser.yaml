@@ -1,0 +1,47 @@
+version: 2
+
+project_name: gofi
+
+builds:
+  - id: gofi
+    main: ./utilities/gofi
+    binary: gofi
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: gofi
+    ids:
+      - gofi
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+
+# `brews` is deprecated by GoReleaser in favor of `homebrew_casks`, which is
+# macOS-only (casks, not formulae) -- wrong fit for a cross-platform CLI like
+# gofi. `goreleaser check` reports the deprecation; it is accepted.
+brews:
+  - name: gofi
+    ids:
+      - gofi
+    repository:
+      owner: gherlein
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/gherlein/gofi"
+    description: "Programmatic control of Ubiquiti UniFi UDM Pro devices -- CLI and Go SDK"
+    license: "MIT"
+    test: |
+      system "#{bin}/gofi", "-h"
+    install: |
+      bin.install "gofi"

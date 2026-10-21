@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/unifi-go/gofi/src"
+	"github.com/gherlein/gofi/src"
 )
 
 const (

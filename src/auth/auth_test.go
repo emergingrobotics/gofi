@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/unifi-go/gofi/src/transport"
+	"github.com/gherlein/gofi/src/transport"
 )
 
 func TestNew(t *testing.T) {

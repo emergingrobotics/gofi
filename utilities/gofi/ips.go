@@ -10,7 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/unifi-go/gofi/utilities/internal/ips"
+	"github.com/gherlein/gofi/utilities/internal/ips"
 )
 
 func newIPsCommand() *cobra.Command {

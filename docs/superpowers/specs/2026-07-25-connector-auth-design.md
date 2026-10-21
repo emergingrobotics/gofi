@@ -2,7 +2,7 @@
 
 Date: 2026-07-25
 Status: Approved for planning
-Scope: `github.com/emergingrobotics/gofi` (module path currently `github.com/unifi-go/gofi`)
+Scope: `github.com/emergingrobotics/gofi` (module path currently `github.com/gherlein/gofi`)
 
 ## Goal
 
@@ -215,7 +215,7 @@ Live (documented runbook, validated 2026-07-25 — see verification table): the 
   `git rm --cached` both and add to `.gitignore`. History rewrite (filter-repo/BFG) only
   if the repo is/will be public; rotate the `192.168.4.1` admin password regardless. Do
   not rewrite history without explicit confirmation.
-- `go.mod` module path (`github.com/unifi-go/gofi`) ≠ repo (`emergingrobotics/gofi`);
+- `go.mod` module path (`github.com/gherlein/gofi`) ≠ repo (`emergingrobotics/gofi`);
   separate commit, touches every import.
 - `client.Events()` returns nil ("Phase 18"); `client.Events().Subscribe(...)` panics.
   Unrelated to auth.

@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/unifi-go/gofi/src"
+	"github.com/gherlein/gofi/src"
 )
 
 func main() {

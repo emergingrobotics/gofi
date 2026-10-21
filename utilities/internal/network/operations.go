@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/unifi-go/gofi/src"
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src"
+	"github.com/gherlein/gofi/src/types"
 )
 
 // NetworkEntry is the flattened view of a UniFi network that gofinet reports,

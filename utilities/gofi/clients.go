@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/unifi-go/gofi/utilities/internal/clients"
+	"github.com/gherlein/gofi/utilities/internal/clients"
 )
 
 func newClientsCommand() *cobra.Command {

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unifi-go/gofi/src/mock"
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src/mock"
+	"github.com/gherlein/gofi/src/types"
 )
 
 func TestClient_Integration_SiteService(t *testing.T) {

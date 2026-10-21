@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/unifi-go/gofi/src"
-	"github.com/unifi-go/gofi/src/services"
-	"github.com/unifi-go/gofi/src/types"
+	"github.com/gherlein/gofi/src"
+	"github.com/gherlein/gofi/src/services"
+	"github.com/gherlein/gofi/src/types"
 )
 
 func TestBuildNetworkEntries_SortsByName(t *testing.T) {
